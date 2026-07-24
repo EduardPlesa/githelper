@@ -4,8 +4,8 @@ namespace GitHelper.Core.Tests;
 
 public class LogParserTests
 {
-    private const string Unit = "";
-    private const string Record = "";
+    private const string Unit = "\u001f";
+    private const string Record = "\u001e";
 
     [Fact]
     public void Parse_ReadsAllCommitFields()

@@ -6,8 +6,8 @@ namespace GitHelper.Core.Parsing;
 /// <summary>Parses the delimited commit format produced by <see cref="Format"/>.</summary>
 public static class LogParser
 {
-    private const char UnitSeparator = '';
-    private const char RecordSeparator = '';
+    private const char UnitSeparator = '\u001f';
+    private const char RecordSeparator = '\u001e';
 
     /// <summary>
     /// Field and record separators are ASCII control characters, which cannot appear in

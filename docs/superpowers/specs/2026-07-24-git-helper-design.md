@@ -242,10 +242,19 @@ Saves a snapshot of the {stagedCount} file(s) you've staged onto branch {branch}
 Live values arrive through named slots — `{stagedCount}`, `{branch}`,
 `{upstream}`, `{fileList}` — substituted from `RepoState` at render time.
 
-Content is rendered with `Markdown.Avalonia`. If that package proves inadequate,
-the fallback is a deliberately small content schema (paragraphs, bullets, code
-spans) with hand-written renderers. Under either option, content authors write
-text, never XAML.
+Content is parsed into a **small, closed block schema** — paragraph, bullet list,
+code block, inline code, and term reference — and rendered by hand-written
+Avalonia controls.
+
+`Markdown.Avalonia` was considered and rejected. Two reasons, the second decisive:
+its current release targets Avalonia 11 and lags the framework, and it cannot
+render the glossary term underline-and-hover behaviour, which is a core teaching
+feature rather than a nicety. A general-purpose Markdown renderer cannot produce
+the one thing this content most needs, so the renderer is written directly against
+the block schema. Content authors still write plain text files, never XAML.
+
+The parser accepts a deliberately small Markdown subset. Anything outside the
+schema is a content error caught by tests, not silently dropped at runtime.
 
 ### Glossary
 

@@ -166,6 +166,13 @@ public static partial class ContentParser
         return blocks;
     }
 
+    /// <summary>
+    /// Block parsing for glossary files, which have their own section shape but the
+    /// same inline and block syntax.
+    /// </summary>
+    internal static IReadOnlyList<ContentBlock> ParseBlocksForTerm(string sectionText)
+        => ParseBlocks(sectionText);
+
     // Matches, in one pass: `code`, [[term]] or [[term|display]], and {slot}.
     [GeneratedRegex(@"`(?<code>[^`]+)`|\[\[(?<term>[^\]|]+)(\|(?<display>[^\]]+))?\]\]|\{(?<slot>[A-Za-z][A-Za-z0-9]*)\}")]
     private static partial Regex InlinePattern();

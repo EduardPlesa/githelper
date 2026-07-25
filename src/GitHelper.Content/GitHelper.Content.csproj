@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -8,11 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="YamlDotNet" Version="18.1.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\GitHelper.Content\GitHelper.Content.csproj" />
+    <EmbeddedResource Include="actions/**/*.md" />
+    <EmbeddedResource Include="terms/**/*.md" />
   </ItemGroup>
 
 </Project>

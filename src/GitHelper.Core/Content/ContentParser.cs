@@ -75,6 +75,8 @@ public static partial class ContentParser
         var end = normalized.IndexOf("\n---", 3, StringComparison.Ordinal);
         if (end < 0)
             throw new ContentException($"{sourceName}: frontmatter is not closed with '---'.");
+        if (end < 4)
+            throw new ContentException($"{sourceName}: frontmatter is empty.");
 
         var frontmatter = normalized[4..end];
         var afterMarker = normalized.IndexOf('\n', end + 1);

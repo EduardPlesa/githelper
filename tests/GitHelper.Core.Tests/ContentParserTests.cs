@@ -140,6 +140,9 @@ public class ContentParserTests
     [Theory]
     [InlineData("no frontmatter at all", "frontmatter")]
     [InlineData("---\nid: x\ntitle: X\ndanger: safe\n---\n## what\nOnly one section.", "risks")]
+    [InlineData("---\n---\n## what\nA.\n\n## risks\nB.\n\n## undo\nC.\n", "empty")]
+    [InlineData("---\nid: x\ntitle: X\ndanger: safe\n## what\nA.\n\n## risks\nB.\n\n## undo\nC.\n", "closed")]
+    [InlineData("---\nid: x\n  bad: [unclosed\n---\n## what\nA.\n\n## risks\nB.\n\n## undo\nC.\n", "yaml")]
     public void Parse_RejectsMalformedContent(string text, string expectedMessageFragment)
     {
         var ex = Assert.Throws<ContentException>(() => ContentParser.Parse(text, "bad.md"));

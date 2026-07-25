@@ -24,7 +24,7 @@ public class GitEnvironmentTests
         var runner = new StubRunner(args => args[0] switch
         {
             "--version" => Ok(args, "git version 2.55.0.windows.3"),
-            "config" when args[1] == "user.name" => Ok(args, "Ada Lovelace"),
+            "config" when args[2] == "user.name" => Ok(args, "Ada Lovelace"),
             "config" => Ok(args, "ada@example.com"),
             _ => Fail(args, "unexpected"),
         });
@@ -75,7 +75,7 @@ public class GitEnvironmentTests
         var runner = new StubRunner(args => args[0] switch
         {
             "--version" => Ok(args, "git version 2.55.0"),
-            "config" when args[1] == "user.name" => Ok(args, "Ada Lovelace"),
+            "config" when args[2] == "user.name" => Ok(args, "Ada Lovelace"),
             "config" => Fail(args, ""),
             _ => Fail(args, "unexpected"),
         });
@@ -101,6 +101,23 @@ public class GitEnvironmentTests
         Assert.All(calls, c => Assert.Contains("--global", c));
         Assert.Contains(calls, c => c.Contains("user.name") && c.Contains("Ada Lovelace"));
         Assert.Contains(calls, c => c.Contains("user.email") && c.Contains("ada@example.com"));
+    }
+
+    [Fact]
+    public async Task SetIdentityAsync_StopsBeforeWritingEmailWhenTheNameWriteFails()
+    {
+        var calls = new List<IReadOnlyList<string>>();
+        var runner = new StubRunner(args =>
+        {
+            calls.Add(args);
+            return args.Contains("user.name") ? Fail(args, "could not lock config file") : Ok(args, "");
+        });
+
+        var result = await new GitEnvironment(runner).SetIdentityAsync("Ada Lovelace", "ada@example.com");
+
+        Assert.Single(calls); // the email write never happened
+        Assert.False(result.Success);
+        Assert.Contains("user.name", result.ArgVector);
     }
 
     [Fact]

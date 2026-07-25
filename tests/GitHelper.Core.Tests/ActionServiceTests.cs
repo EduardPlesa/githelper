@@ -118,6 +118,23 @@ public class ActionServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_BlocksPushInDetachedHeadInsteadOfCrashing()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("remote", "add", "origin", "https://example.invalid/nope.git");
+        var head = await repo.GitAsync("rev-parse", "HEAD");
+        await repo.GitAsync("checkout", "-q", head.StdOut.Trim());
+
+        var outcome = await NewService().RunAsync(repo.Path, new ActionRequest("push"));
+
+        Assert.False(outcome.Success);
+        Assert.NotEmpty(outcome.Blockers);
+        Assert.Contains(outcome.Blockers, b => b.Message!.Contains("detached", StringComparison.OrdinalIgnoreCase));
+        // The blocker was caught before git ever ran.
+        Assert.Empty(outcome.Result.ArgVector);
+    }
+
+    [Fact]
     public async Task RunAsync_RejectsAnUnknownActionId()
     {
         using var repo = await TestRepo.CreateAsync();

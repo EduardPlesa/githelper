@@ -55,8 +55,9 @@ public sealed class GitEnvironment(IGitRunner runner)
     private async Task<EnvironmentCheck> CheckIdentityAsync(string workingDirectory, CancellationToken ct)
     {
         // git config exits non-zero when a key is unset, which is the signal used here.
-        var name = await runner.RunAsync(workingDirectory, new[] { "config", "user.name" }, ct);
-        var email = await runner.RunAsync(workingDirectory, new[] { "config", "user.email" }, ct);
+        // --global mirrors SetIdentityAsync's write, so the check reflects what would change.
+        var name = await runner.RunAsync(workingDirectory, new[] { "config", "--global", "user.name" }, ct);
+        var email = await runner.RunAsync(workingDirectory, new[] { "config", "--global", "user.email" }, ct);
 
         var hasName = name.Success && name.StdOut.Trim().Length > 0;
         var hasEmail = email.Success && email.StdOut.Trim().Length > 0;
@@ -88,7 +89,10 @@ public sealed class GitEnvironment(IGitRunner runner)
     {
         var workingDirectory = Directory.GetCurrentDirectory();
 
-        await runner.RunAsync(workingDirectory, new[] { "config", "--global", "user.name", name }, ct);
+        var nameResult = await runner.RunAsync(
+            workingDirectory, new[] { "config", "--global", "user.name", name }, ct);
+        if (!nameResult.Success) return nameResult;
+
         return await runner.RunAsync(
             workingDirectory, new[] { "config", "--global", "user.email", email }, ct);
     }

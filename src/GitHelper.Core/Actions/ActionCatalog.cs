@@ -97,7 +97,10 @@ public static class ActionCatalog
             BuildArgs: (s, _) => s.Upstream is null
                 ? new[] { "push", "--set-upstream", "origin", s.Branch! }
                 : new[] { "push" },
-            Preconditions: new IPrecondition[] { new RequiresRemote(), new RequiresCommits() }),
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresRemote(), new RequiresCommits(), new RequiresNotDetached(),
+            }),
 
         new GitAction(
             Id: "discard-file",

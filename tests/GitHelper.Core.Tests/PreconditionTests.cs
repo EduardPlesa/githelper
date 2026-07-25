@@ -118,6 +118,23 @@ public class PreconditionTests
     }
 
     [Fact]
+    public void RequiresNotDetached_BlocksActionsThatNeedABranchName()
+    {
+        var detached = State(branch: null);
+
+        var result = new RequiresNotDetached().Evaluate(detached, Request());
+
+        Assert.False(result.Satisfied);
+        Assert.Contains("detached", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RequiresNotDetached_PassesWhenOnABranch()
+    {
+        Assert.True(new RequiresNotDetached().Evaluate(State(), Request()).Satisfied);
+    }
+
+    [Fact]
     public void RequiresNotCurrentBranch_RefusesToDeleteTheBranchYouAreOn()
     {
         var result = new RequiresNotCurrentBranch().Evaluate(State(), Request(branchName: "main"));

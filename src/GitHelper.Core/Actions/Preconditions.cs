@@ -100,12 +100,24 @@ public sealed class RequiresUpstream : IPrecondition
                 "push");
 }
 
+public sealed class RequiresNotDetached : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+        => state.IsDetached
+            ? PreconditionResult.Fail(
+                "You're not on a branch right now — git calls this a 'detached HEAD', and it "
+                + "usually happens after checking out a specific commit or tag rather than a "
+                + "branch. There's no branch name to send this to, so create one first.",
+                "create-branch")
+            : PreconditionResult.Ok;
+}
+
 public sealed class RequiresNoUncommittedChanges : IPrecondition
 {
     public PreconditionResult Evaluate(RepoState state, ActionRequest request)
     {
         // Untracked files are carried across a switch untouched, so they are not an obstacle.
-        var blocking = state.Changes.Any(c => c.IsStaged || c.HasUnstagedChanges);
+        var blocking = state.HasUncommittedChanges;
 
         return blocking
             ? PreconditionResult.Fail(

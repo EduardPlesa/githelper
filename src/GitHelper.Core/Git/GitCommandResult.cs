@@ -16,5 +16,15 @@ public sealed record GitCommandResult(
     public bool Success => ExitCode == 0;
 
     /// <summary>The command as a user could type it. Used by the command log and explain panel.</summary>
-    public string CommandLine => "git " + string.Join(' ', ArgVector);
+    public string CommandLine => "git " + string.Join(' ', ArgVector.Select(QuoteIfNeeded));
+
+    private static string QuoteIfNeeded(string arg)
+    {
+        if (arg.Length > 0 && arg.IndexOfAny(new[] { ' ', '\t' }) < 0)
+            return arg;
+
+        // Escape embedded double quotes, then wrap in double quotes — enough for a display
+        // string meant to be pasted into a terminal, not a full shell-quoting implementation.
+        return "\"" + arg.Replace("\"", "\\\"") + "\"";
+    }
 }

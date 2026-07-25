@@ -42,6 +42,30 @@ public class GitRunnerTests
     }
 
     [Fact]
+    public void CommandLine_QuotesArgumentsContainingSpacesSoTheDisplayedCommandIsPasteable()
+    {
+        var result = new GitCommandResult(new[] { "commit", "-m", "add a file" }, "", "", 0, TimeSpan.Zero);
+
+        Assert.Equal("git commit -m \"add a file\"", result.CommandLine);
+    }
+
+    [Fact]
+    public void CommandLine_LeavesSimpleArgumentsUnquoted()
+    {
+        var result = new GitCommandResult(new[] { "status" }, "", "", 0, TimeSpan.Zero);
+
+        Assert.Equal("git status", result.CommandLine);
+    }
+
+    [Fact]
+    public void CommandLine_EscapesEmbeddedDoubleQuotes()
+    {
+        var result = new GitCommandResult(new[] { "commit", "-m", "say \"hi\" there" }, "", "", 0, TimeSpan.Zero);
+
+        Assert.Equal("git commit -m \"say \\\"hi\\\" there\"", result.CommandLine);
+    }
+
+    [Fact]
     public async Task RunAsync_HandlesPathsWithSpacesWithoutQuoting()
     {
         using var repo = await TestRepo.CreateAsync();

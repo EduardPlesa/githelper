@@ -3,6 +3,7 @@ id: stage-file
 title: Stage file
 danger: safe
 terms: [staging-area]
+undo: unstage-file
 ---
 ## what
 Adds this file to the [[staging-area]], so it will be included the next time you save

@@ -31,7 +31,9 @@ public sealed class ActionService(
             ? action.BuildArgs(state, request)
             : Array.Empty<string>();
 
-        var commandLine = args.Count == 0 ? string.Empty : "git " + string.Join(' ', args);
+        var commandLine = args.Count == 0
+            ? string.Empty
+            : new GitCommandResult(args, string.Empty, string.Empty, 0, TimeSpan.Zero).CommandLine;
 
         return new ActionPreview(
             Action: action,

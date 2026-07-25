@@ -23,7 +23,7 @@ public class ActionServiceTests
         var preview = await NewService().PreviewAsync(
             repo.Path, new ActionRequest("commit", Message: "add a file"));
 
-        Assert.Equal("git commit -m add a file", preview.CommandLine);
+        Assert.Equal("git commit -m \"add a file\"", preview.CommandLine);
         Assert.True(preview.CanRun);
 
         // Nothing ran: the history is still just the initial commit.

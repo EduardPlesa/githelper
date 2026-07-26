@@ -53,3 +53,20 @@ public sealed class InMemorySettingsStore : ISettingsStore
         SaveCount++;
     }
 }
+
+public sealed class StubConfirmationDialog : IConfirmationDialog
+{
+    public bool NextAnswer { get; set; }
+
+    public int CallCount { get; private set; }
+
+    public string? LastConsequence { get; private set; }
+
+    public Task<bool> ConfirmDestructiveAsync(
+        string title, string consequence, CancellationToken ct = default)
+    {
+        CallCount++;
+        LastConsequence = consequence;
+        return Task.FromResult(NextAnswer);
+    }
+}

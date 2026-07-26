@@ -1,0 +1,188 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using GitHelper.App.Infrastructure;
+using GitHelper.App.Settings;
+using GitHelper.Core.Actions;
+using GitHelper.Core.Content;
+using GitHelper.Core.Errors;
+
+namespace GitHelper.App.ViewModels;
+
+public enum ExplainPanelState
+{
+    /// <summary>Nothing selected — shows the quiet placeholder.</summary>
+    Empty,
+
+    /// <summary>Showing an action's explanation, possibly awaiting confirmation.</summary>
+    Explaining,
+
+    /// <summary>The action ran and git failed; showing the translated error.</summary>
+    Error,
+}
+
+/// <summary>
+/// Drives the right-hand panel: previews an action, gates it by danger level, runs it, and
+/// reports what actually happened. Owns the "modal only for Destructive" rule.
+/// </summary>
+public sealed partial class ExplainPanelViewModel : ViewModelBase
+{
+    private static readonly IReadOnlyList<ContentBlock> NoBlocks = Array.Empty<ContentBlock>();
+
+    private readonly ActionService _actions;
+    private readonly IConfirmationDialog _confirmations;
+    private readonly ISettingsStore _settings;
+
+    private string? _repoPath;
+    private ActionRequest? _request;
+    private IReadOnlyDictionary<string, string> _slots = new Dictionary<string, string>();
+
+    public ExplainPanelViewModel(
+        ActionService actions,
+        IConfirmationDialog confirmations,
+        ISettingsStore settings)
+    {
+        _actions = actions;
+        _confirmations = confirmations;
+        _settings = settings;
+    }
+
+    [ObservableProperty] private ExplainPanelState _panelState = ExplainPanelState.Empty;
+    [ObservableProperty] private string _title = string.Empty;
+    [ObservableProperty] private string _commandLine = string.Empty;
+    [ObservableProperty] private Danger _dangerLevel;
+    [ObservableProperty] private IReadOnlyList<ContentBlock> _whatBlocks = NoBlocks;
+    [ObservableProperty] private IReadOnlyList<ContentBlock> _risksBlocks = NoBlocks;
+    [ObservableProperty] private IReadOnlyList<ContentBlock> _undoBlocks = NoBlocks;
+    [ObservableProperty] private IReadOnlyList<string> _blockers = Array.Empty<string>();
+    [ObservableProperty] private bool _canRun;
+    [ObservableProperty] private bool _requiresConfirmation;
+    [ObservableProperty] private string? _narration;
+    [ObservableProperty] private TranslatedError? _error;
+    [ObservableProperty] private bool _showTechnicalDetails;
+    [ObservableProperty] private bool _suppressExplanationForThisAction;
+
+    /// <summary>Raised after a run so the shell can refresh repository state.</summary>
+    public event EventHandler<ActionOutcome>? ActionCompleted;
+
+    /// <summary>True when the action is safe enough to run the moment it is clicked.</summary>
+    public bool ShouldRunImmediately => CanRun && !RequiresConfirmation;
+
+    /// <summary>Previews an action without running anything.</summary>
+    public async Task ShowAsync(string repoPath, ActionRequest request, CancellationToken ct = default)
+    {
+        var preview = await _actions.PreviewAsync(repoPath, request, ct);
+
+        _repoPath = repoPath;
+        _request = request;
+        _slots = preview.Slots;
+
+        Title = preview.Action.Title;
+        CommandLine = preview.CommandLine;
+        DangerLevel = preview.Danger;
+        // Fully qualified: this file already imports GitHelper.Core.Content, so a bare
+        // "Content.SlotResolver" would be ambiguous between the two Content namespaces.
+        WhatBlocks = GitHelper.App.Content.SlotResolver.Resolve(preview.Explanation.What, preview.Slots);
+        RisksBlocks = GitHelper.App.Content.SlotResolver.Resolve(preview.Explanation.Risks, preview.Slots);
+        UndoBlocks = GitHelper.App.Content.SlotResolver.Resolve(preview.Explanation.Undo, preview.Slots);
+        Blockers = preview.Blockers
+            .Select(b => b.Message ?? "This cannot run right now.")
+            .ToArray();
+        CanRun = preview.CanRun;
+        RequiresConfirmation = ComputeRequiresConfirmation(preview.Danger, request.ActionId);
+
+        Narration = null;
+        Error = null;
+        ShowTechnicalDetails = false;
+        SuppressExplanationForThisAction = false;
+        PanelState = ExplainPanelState.Explaining;
+    }
+
+    /// <summary>
+    /// Runs the previewed action. Returns false when nothing ran — either because it was
+    /// blocked, or because the user declined the destructive confirmation.
+    /// </summary>
+    public async Task<bool> RunAsync(CancellationToken ct = default)
+    {
+        if (_repoPath is null || _request is null || !CanRun) return false;
+
+        if (DangerLevel == Danger.Destructive)
+        {
+            var confirmed = await _confirmations.ConfirmDestructiveAsync(
+                Title, BuildConsequence(), ct);
+            if (!confirmed) return false;
+        }
+
+        var outcome = await _actions.RunAsync(_repoPath, _request, ct);
+
+        if (outcome.Success)
+        {
+            Narration = outcome.Narration;
+            Error = null;
+            PanelState = ExplainPanelState.Explaining;
+        }
+        else
+        {
+            Narration = null;
+            Error = outcome.Error;
+            ShowTechnicalDetails = false;
+            PanelState = ExplainPanelState.Error;
+        }
+
+        if (SuppressExplanationForThisAction && DangerLevel != Danger.Destructive)
+            _settings.Save(_settings.Load().WithExplanationSuppressed(_request.ActionId));
+
+        ActionCompleted?.Invoke(this, outcome);
+        return true;
+    }
+
+    /// <summary>Shows the explanation, then runs the action if it needs no confirmation.</summary>
+    public async Task ShowAndRunIfUngatedAsync(
+        string repoPath, ActionRequest request, CancellationToken ct = default)
+    {
+        await ShowAsync(repoPath, request, ct);
+        if (ShouldRunImmediately) await RunAsync(ct);
+    }
+
+    public void Clear()
+    {
+        _repoPath = null;
+        _request = null;
+        _slots = new Dictionary<string, string>();
+
+        Title = string.Empty;
+        CommandLine = string.Empty;
+        WhatBlocks = NoBlocks;
+        RisksBlocks = NoBlocks;
+        UndoBlocks = NoBlocks;
+        Blockers = Array.Empty<string>();
+        CanRun = false;
+        RequiresConfirmation = false;
+        Narration = null;
+        Error = null;
+        ShowTechnicalDetails = false;
+        SuppressExplanationForThisAction = false;
+        PanelState = ExplainPanelState.Empty;
+    }
+
+    private bool ComputeRequiresConfirmation(Danger danger, string actionId) => danger switch
+    {
+        Danger.Safe => false,
+
+        // Never suppressible: this is the one action that can permanently lose work.
+        Danger.Destructive => true,
+
+        _ => !_settings.Load().SuppressedExplanations.Contains(actionId),
+    };
+
+    /// <summary>The consequence sentence shown in the destructive modal, with real values.</summary>
+    private string BuildConsequence()
+    {
+        var path = _slots.TryGetValue("path", out var p) ? p : "this file";
+        return $"This permanently deletes your unsaved edits to {path}. "
+               + "They were never committed, so nothing can bring them back.";
+    }
+
+    partial void OnCanRunChanged(bool value) => OnPropertyChanged(nameof(ShouldRunImmediately));
+
+    partial void OnRequiresConfirmationChanged(bool value)
+        => OnPropertyChanged(nameof(ShouldRunImmediately));
+}

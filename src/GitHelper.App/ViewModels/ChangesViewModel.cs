@@ -73,20 +73,17 @@ public sealed partial class ChangesViewModel : ViewModelBase
     private Task InvokeWithPathAsync(string actionId, string path) => InvokeAsync(actionId, path);
 
     /// <summary>
-    /// Previews, then always runs. Every row/bulk action here (stage, unstage, discard) is a
-    /// one-click user action: Safe ones just execute, and the sole Destructive one
-    /// (discard-file) gates itself through the native modal inside <c>RunAsync</c>. This is
-    /// deliberately not <see cref="ExplainPanelViewModel.ShowAndRunIfUngatedAsync"/>, because
-    /// that helper never auto-runs a Destructive action (RequiresConfirmation is always true
-    /// for Destructive) — it would silently no-op discard instead of showing the modal.
-    /// Commit is different: it needs the inline preview-then-explicit-run flow, so it uses
-    /// the gated helper instead (see <see cref="CommitAsync"/>).
+    /// Previews, then runs immediately unless the action needs an inline Confirm. Every
+    /// row/bulk action here (stage, unstage, discard) is a one-click user action: Safe ones
+    /// just execute, and the sole Destructive one (discard-file) is gated by the native modal
+    /// inside <see cref="ExplainPanelViewModel.RunAsync"/> rather than an inline Confirm, so
+    /// <see cref="ExplainPanelViewModel.ShouldRunImmediately"/> still lets it through here and
+    /// the modal does the gating. Caution actions are held for an inline Confirm instead.
     /// </summary>
     private async Task InvokeAsync(string actionId, string? path)
     {
         if (_repoPath is null) return;
-        await _explain.ShowAsync(_repoPath, new ActionRequest(actionId, Path: path));
-        await _explain.RunAsync();
+        await _explain.ShowAndRunIfUngatedAsync(_repoPath, new ActionRequest(actionId, Path: path));
     }
 
     private Task CommitAsync()

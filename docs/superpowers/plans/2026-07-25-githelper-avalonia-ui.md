@@ -2262,8 +2262,21 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     /// <summary>Raised after a run so the shell can refresh repository state.</summary>
     public event EventHandler<ActionOutcome>? ActionCompleted;
 
-    /// <summary>True when the action is safe enough to run the moment it is clicked.</summary>
-    public bool ShouldRunImmediately => CanRun && !RequiresConfirmation;
+    /// <summary>
+    /// True when the confirmation belongs inline in the panel. Destructive actions are
+    /// excluded: they are gated by a modal instead, deliberately in a different screen
+    /// position so the confirmation cannot be dismissed by the muscle memory built up
+    /// clicking inline Confirm buttons.
+    /// </summary>
+    public bool RequiresInlineConfirmation =>
+        RequiresConfirmation && DangerLevel != Danger.Destructive;
+
+    /// <summary>
+    /// True when clicking the action should proceed without waiting for an inline Confirm.
+    /// Destructive actions qualify: RunAsync opens the modal itself, so the gate is not
+    /// skipped — it simply lives in the dialog rather than in the panel.
+    /// </summary>
+    public bool ShouldRunImmediately => CanRun && !RequiresInlineConfirmation;
 
     /// <summary>Previews an action without running anything.</summary>
     public async Task ShowAsync(string repoPath, ActionRequest request, CancellationToken ct = default)
@@ -2383,7 +2396,16 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     partial void OnCanRunChanged(bool value) => OnPropertyChanged(nameof(ShouldRunImmediately));
 
     partial void OnRequiresConfirmationChanged(bool value)
-        => OnPropertyChanged(nameof(ShouldRunImmediately));
+    {
+        OnPropertyChanged(nameof(RequiresInlineConfirmation));
+        OnPropertyChanged(nameof(ShouldRunImmediately));
+    }
+
+    partial void OnDangerLevelChanged(Danger value)
+    {
+        OnPropertyChanged(nameof(RequiresInlineConfirmation));
+        OnPropertyChanged(nameof(ShouldRunImmediately));
+    }
 }
 ```
 
@@ -5568,8 +5590,9 @@ Create `src/GitHelper.App/Views/ExplainPanelView.axaml`:
         </StackPanel>
 
         <!-- Inline confirmation, for Caution actions. Destructive ones open a modal
-             instead, decided by the viewmodel. -->
-        <StackPanel Spacing="6" IsVisible="{Binding RequiresConfirmation}">
+             instead of this panel, decided by the viewmodel (RequiresInlineConfirmation
+             excludes Destructive so the modal is the only gate for it). -->
+        <StackPanel Spacing="6" IsVisible="{Binding RequiresInlineConfirmation}">
           <CheckBox Content="Stop explaining this one"
                     IsChecked="{Binding SuppressExplanationForThisAction}" />
           <Button Content="{Binding Title, StringFormat='Confirm — {0}'}"

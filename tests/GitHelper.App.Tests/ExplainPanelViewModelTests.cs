@@ -128,7 +128,10 @@ public class ExplainPanelViewModelTests
         await panel.ShowAsync(repo.Path, new ActionRequest("discard-file", Path: "README.md"));
 
         Assert.True(panel.RequiresConfirmation);
-        Assert.False(panel.ShouldRunImmediately);
+        // ShouldRunImmediately is true here: it now tracks the *inline* gate only. The
+        // suppression setting never reaches the modal, which RunAsync always consults for
+        // a Destructive action regardless of this flag — that is the "never suppressed" part.
+        Assert.True(panel.ShouldRunImmediately);
     }
 
     [Fact]
@@ -291,5 +294,49 @@ public class ExplainPanelViewModelTests
 
         var state = await reader.ReadAsync(repo.Path);
         Assert.Single(state.RecentCommits); // still just the initial commit
+    }
+
+    [Fact]
+    public async Task RequiresInlineConfirmation_IsFalseForADestructiveActionSoTheModalIsTheOnlyGate()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "changed\n");
+        var (panel, _, _) = NewPanel();
+
+        await panel.ShowAsync(repo.Path, new ActionRequest("discard-file", Path: "README.md"));
+
+        Assert.True(panel.RequiresConfirmation);
+        Assert.False(panel.RequiresInlineConfirmation);
+        Assert.True(panel.ShouldRunImmediately);
+    }
+
+    [Fact]
+    public async Task RequiresInlineConfirmation_IsTrueForACautionAction()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("a.txt", "x\n");
+        await repo.GitAsync("add", "-A");
+        var (panel, _, _) = NewPanel();
+
+        await panel.ShowAsync(repo.Path, new ActionRequest("commit", Message: "m"));
+
+        Assert.True(panel.RequiresConfirmation);
+        Assert.True(panel.RequiresInlineConfirmation);
+        Assert.False(panel.ShouldRunImmediately);
+    }
+
+    [Fact]
+    public async Task ShowAndRunIfUngatedAsync_ReachesTheModalForADestructiveAction()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "vandalised\n");
+        var (panel, confirmations, _) = NewPanel();
+        confirmations.NextAnswer = false;
+
+        await panel.ShowAndRunIfUngatedAsync(repo.Path, new ActionRequest("discard-file", Path: "README.md"));
+
+        Assert.Equal(1, confirmations.CallCount);
+        // Declining must leave the file untouched.
+        Assert.Equal("vandalised\n", File.ReadAllText(Path.Combine(repo.Path, "README.md")).Replace("\r\n", "\n"));
     }
 }

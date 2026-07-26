@@ -1,5 +1,6 @@
 using GitHelper.App.Infrastructure;
 using GitHelper.App.Settings;
+using GitHelper.Core.Git;
 
 namespace GitHelper.App.Tests;
 
@@ -68,5 +69,28 @@ public sealed class StubConfirmationDialog : IConfirmationDialog
         CallCount++;
         LastConsequence = consequence;
         return Task.FromResult(NextAnswer);
+    }
+}
+
+/// <summary>
+/// A canned git runner. ThrowGitMissing reproduces what the real runner does when git is
+/// not on PATH: Process.Start throws Win32Exception, which GitEnvironment catches.
+/// </summary>
+public sealed class StubGitRunner : IGitRunner
+{
+    public Func<IReadOnlyList<string>, GitCommandResult>? Respond { get; set; }
+
+    public bool ThrowGitMissing { get; set; }
+
+    public Task<GitCommandResult> RunAsync(
+        string workingDirectory, IReadOnlyList<string> args, CancellationToken ct = default)
+    {
+        if (ThrowGitMissing)
+            throw new System.ComponentModel.Win32Exception("The system cannot find the file specified.");
+
+        var result = Respond?.Invoke(args)
+            ?? new GitCommandResult(args, string.Empty, string.Empty, 0, TimeSpan.Zero);
+
+        return Task.FromResult(result);
     }
 }

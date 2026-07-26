@@ -1938,7 +1938,61 @@ public class ExplainPanelViewModelTests
         await panel.ShowAsync(repo.Path, new ActionRequest("discard-file", Path: "README.md"));
 
         Assert.True(panel.RequiresConfirmation);
+        // ShouldRunImmediately is true here: it tracks the *inline* gate only. The
+        // suppression setting never reaches the modal, which RunAsync always consults for
+        // a Destructive action regardless of this flag — that is the "never suppressed" part.
+        Assert.True(panel.ShouldRunImmediately);
+    }
+
+    [Fact]
+    public async Task RequiresInlineConfirmation_IsFalseForADestructiveActionSoTheModalIsTheOnlyGate()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "changed\n");
+        var (panel, _, _) = NewPanel();
+
+        await panel.ShowAsync(repo.Path, new ActionRequest("discard-file", Path: "README.md"));
+
+        // Gated, but not by an inline button — the modal is the gate, deliberately in a
+        // different screen position from the Confirm buttons used for Caution actions.
+        Assert.True(panel.RequiresConfirmation);
+        Assert.False(panel.RequiresInlineConfirmation);
+        Assert.True(panel.ShouldRunImmediately);
+    }
+
+    [Fact]
+    public async Task RequiresInlineConfirmation_IsTrueForACautionAction()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("a.txt", "x\n");
+        await repo.GitAsync("add", "-A");
+        var (panel, _, _) = NewPanel();
+
+        await panel.ShowAsync(repo.Path, new ActionRequest("commit", Message: "m"));
+
+        Assert.True(panel.RequiresConfirmation);
+        Assert.True(panel.RequiresInlineConfirmation);
         Assert.False(panel.ShouldRunImmediately);
+    }
+
+    [Fact]
+    public async Task ShowAndRunIfUngatedAsync_ReachesTheModalForADestructiveAction()
+    {
+        // Regression test: a Destructive action must reach RunAsync so the modal opens.
+        // When ShouldRunImmediately tracked RequiresConfirmation, clicking Discard did
+        // nothing at all — the modal was never consulted.
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "vandalised\n");
+        var (panel, confirmations, _) = NewPanel();
+        confirmations.NextAnswer = false;
+
+        await panel.ShowAndRunIfUngatedAsync(
+            repo.Path, new ActionRequest("discard-file", Path: "README.md"));
+
+        Assert.Equal(1, confirmations.CallCount);
+        Assert.Equal(
+            "vandalised\n",
+            File.ReadAllText(Path.Combine(repo.Path, "README.md")).Replace("\r\n", "\n"));
     }
 
     [Fact]
@@ -2262,8 +2316,21 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     /// <summary>Raised after a run so the shell can refresh repository state.</summary>
     public event EventHandler<ActionOutcome>? ActionCompleted;
 
-    /// <summary>True when the action is safe enough to run the moment it is clicked.</summary>
-    public bool ShouldRunImmediately => CanRun && !RequiresConfirmation;
+    /// <summary>
+    /// True when the confirmation belongs inline in the panel. Destructive actions are
+    /// excluded: they are gated by a modal instead, deliberately in a different screen
+    /// position so the confirmation cannot be dismissed by the muscle memory built up
+    /// clicking inline Confirm buttons.
+    /// </summary>
+    public bool RequiresInlineConfirmation =>
+        RequiresConfirmation && DangerLevel != Danger.Destructive;
+
+    /// <summary>
+    /// True when clicking the action should proceed without waiting for an inline Confirm.
+    /// Destructive actions qualify: RunAsync opens the modal itself, so the gate is not
+    /// skipped — it simply lives in the dialog rather than in the panel.
+    /// </summary>
+    public bool ShouldRunImmediately => CanRun && !RequiresInlineConfirmation;
 
     /// <summary>Previews an action without running anything.</summary>
     public async Task ShowAsync(string repoPath, ActionRequest request, CancellationToken ct = default)
@@ -2383,7 +2450,16 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     partial void OnCanRunChanged(bool value) => OnPropertyChanged(nameof(ShouldRunImmediately));
 
     partial void OnRequiresConfirmationChanged(bool value)
-        => OnPropertyChanged(nameof(ShouldRunImmediately));
+    {
+        OnPropertyChanged(nameof(RequiresInlineConfirmation));
+        OnPropertyChanged(nameof(ShouldRunImmediately));
+    }
+
+    partial void OnDangerLevelChanged(Danger value)
+    {
+        OnPropertyChanged(nameof(RequiresInlineConfirmation));
+        OnPropertyChanged(nameof(ShouldRunImmediately));
+    }
 }
 ```
 
@@ -2413,14 +2489,14 @@ public sealed class StubConfirmationDialog : IConfirmationDialog
 - [ ] **Step 7: Run the tests**
 
 Run: `dotnet test tests/GitHelper.App.Tests/GitHelper.App.Tests.csproj --filter "SlotResolverTests|ExplainPanelViewModelTests"`
-Expected: PASS, 22 tests.
+Expected: PASS, 25 tests.
 
 `RunAsync_SwitchesToTheErrorStateAndKeepsRawOutputReachable` points a remote at an unreachable host, so expect it to take a few seconds while git gives up.
 
 - [ ] **Step 8: Run the whole suite**
 
 Run: `dotnet test`
-Expected: PASS, 191 tests.
+Expected: PASS, 194 tests.
 
 - [ ] **Step 9: Commit**
 
@@ -2588,7 +2664,7 @@ Expected: PASS, 5 tests.
 - [ ] **Step 5: Run the whole suite**
 
 Run: `dotnet test`
-Expected: PASS, 195 tests.
+Expected: PASS, 199 tests.
 
 - [ ] **Step 6: Commit**
 
@@ -3582,6 +3658,7 @@ public class BranchesViewModelTests
     [InlineData(0, 0, "in step with origin/main")]
     [InlineData(1, 0, "1 commit to send")]
     [InlineData(3, 0, "3 commits to send")]
+    [InlineData(0, 1, "1 commit to get")]
     [InlineData(0, 2, "2 commits to get")]
     [InlineData(2, 3, "2 to send, 3 to get")]
     public void SyncSummary_PhrasesAheadAndBehindPlainly(int ahead, int behind, string expected)
@@ -3644,14 +3721,36 @@ public class BranchesViewModelTests
     }
 
     [Fact]
-    public void OnActionCompleted_ClearsTheBranchNameBoxAfterASuccessfulAction()
+    public void OnActionCompleted_ClearsTheBranchNameBoxWhenThatBranchAppeared()
     {
         var f = NewFixture();
         f.Branches.NewBranchName = "feature";
 
-        f.Branches.OnActionCompleted(SuccessfulOutcome());
+        var before = State(branches: new[] { new BranchInfo("main", null) });
+        var after = State(branches: new[]
+        {
+            new BranchInfo("main", null),
+            new BranchInfo("feature", null),
+        });
+
+        f.Branches.OnActionCompleted(OutcomeBetween(before, after));
 
         Assert.Equal(string.Empty, f.Branches.NewBranchName);
+    }
+
+    [Fact]
+    public void OnActionCompleted_KeepsTheTypedNameWhenAnUnrelatedActionSucceeded()
+    {
+        // Typing a branch name and then clicking Fetch or Pull must not silently
+        // discard it — only an actual branch creation should clear the box.
+        var f = NewFixture();
+        f.Branches.NewBranchName = "feature";
+
+        var state = State(branches: new[] { new BranchInfo("main", null) });
+
+        f.Branches.OnActionCompleted(OutcomeBetween(state, state));
+
+        Assert.Equal("feature", f.Branches.NewBranchName);
     }
 
     [Fact]
@@ -3660,23 +3759,27 @@ public class BranchesViewModelTests
         var f = NewFixture();
         f.Branches.NewBranchName = "feature";
 
-        f.Branches.OnActionCompleted(SuccessfulOutcome() with { Success = false });
+        var before = State(branches: new[] { new BranchInfo("main", null) });
+        var after = State(branches: new[]
+        {
+            new BranchInfo("main", null),
+            new BranchInfo("feature", null),
+        });
+
+        f.Branches.OnActionCompleted(OutcomeBetween(before, after) with { Success = false });
 
         Assert.Equal("feature", f.Branches.NewBranchName);
     }
 
-    private static ActionOutcome SuccessfulOutcome()
-    {
-        var state = State();
-        return new ActionOutcome(
+    private static ActionOutcome OutcomeBetween(RepoState before, RepoState after)
+        => new(
             Success: true,
             Result: new GitCommandResult(new[] { "switch", "-c", "feature" }, "", "", 0, TimeSpan.Zero),
             Narration: "created",
             Error: null,
-            Before: state,
-            After: state,
+            Before: before,
+            After: after,
             Blockers: Array.Empty<PreconditionResult>());
-    }
 
     [Fact]
     public async Task SwitchCommand_PreviewsWithoutSwitchingBecauseSwitchingIsGated()
@@ -3865,11 +3968,21 @@ public sealed partial class BranchesViewModel : ViewModelBase
         SyncSummary = DescribeSync(state);
     }
 
-    /// <summary>Clears the name box once a branch observably appeared.</summary>
+    /// <summary>
+    /// Clears the name box only when a branch with that name observably appeared, mirroring
+    /// how ChangesViewModel treats the commit box. Reacting to bare success instead would
+    /// discard the typed name when the user clicks Fetch or Pull before Create.
+    /// </summary>
     public void OnActionCompleted(ActionOutcome outcome)
     {
-        if (outcome.Success && !string.IsNullOrEmpty(NewBranchName))
-            NewBranchName = string.Empty;
+        if (!outcome.Success || string.IsNullOrEmpty(NewBranchName)) return;
+
+        var existedBefore = outcome.Before.Branches.Any(
+            b => string.Equals(b.Name, NewBranchName, StringComparison.Ordinal));
+        var existsAfter = outcome.After.Branches.Any(
+            b => string.Equals(b.Name, NewBranchName, StringComparison.Ordinal));
+
+        if (!existedBefore && existsAfter) NewBranchName = string.Empty;
     }
 
     /// <summary>
@@ -3906,7 +4019,7 @@ public sealed partial class BranchesViewModel : ViewModelBase
 - [ ] **Step 5: Run the tests**
 
 Run: `dotnet test tests/GitHelper.App.Tests/GitHelper.App.Tests.csproj --filter BranchesViewModelTests`
-Expected: PASS, 20 tests (15 facts plus 5 theory cases).
+Expected: PASS, 22 tests (16 facts plus 6 theory cases).
 
 - [ ] **Step 6: Run the whole suite**
 
@@ -4462,12 +4575,18 @@ public class RepoWatcherTests : IDisposable
     public async Task Watch_CoalescesABurstOfChangesIntoASingleCallback()
     {
         var fired = 0;
-        using var watcher = new RepoWatcher(TimeSpan.FromMilliseconds(150), () => Interlocked.Increment(ref fired));
+        using var watcher = new RepoWatcher(TimeSpan.FromMilliseconds(100), () => Interlocked.Increment(ref fired));
         watcher.Watch(_dir);
 
-        // Stands in for the many files a single `git commit` writes under .git.
-        for (var i = 0; i < 25; i++)
+        // Deliberately spread across ~300ms, comfortably longer than the 100ms debounce.
+        // A tight loop would finish inside the window and pass even against a throttling
+        // implementation, proving nothing: the debounce must RESTART on every event, so a
+        // steady stream of changes yields exactly one callback after the stream stops.
+        for (var i = 0; i < 12; i++)
+        {
             File.WriteAllText(Path.Combine(_dir, $"f{i}.txt"), i.ToString());
+            await Task.Delay(25);
+        }
 
         Assert.True(await WaitUntilAsync(() => Volatile.Read(ref fired) >= 1));
         await Task.Delay(300); // let any further callbacks arrive
@@ -4529,6 +4648,36 @@ public class RepoWatcherTests : IDisposable
 
         // A recents entry can point at a deleted folder; this must not throw.
         watcher.Watch(Path.Combine(_dir, "gone"));
+    }
+
+    [Fact]
+    public async Task Dispose_WaitsForACallbackThatIsAlreadyRunning()
+    {
+        using var callbackStarted = new ManualResetEventSlim(false);
+        using var releaseCallback = new ManualResetEventSlim(false);
+        var callbackFinished = false;
+
+        var watcher = new RepoWatcher(TimeSpan.FromMilliseconds(50), () =>
+        {
+            callbackStarted.Set();
+            releaseCallback.Wait(TimeSpan.FromSeconds(5));
+            callbackFinished = true;
+        });
+        watcher.Watch(_dir);
+
+        File.WriteAllText(Path.Combine(_dir, "a.txt"), "x");
+        Assert.True(callbackStarted.Wait(TimeSpan.FromSeconds(5)), "callback never started");
+
+        // Dispose on another thread: it must block until the running callback completes,
+        // otherwise a consumer could tear down state the callback is still touching.
+        var dispose = Task.Run(() => watcher.Dispose());
+        await Task.WhenAny(dispose, Task.Delay(TimeSpan.FromMilliseconds(250)));
+        Assert.False(dispose.IsCompleted, "Dispose returned while the callback was still running");
+
+        releaseCallback.Set();
+        await Task.WhenAny(dispose, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.True(dispose.IsCompleted, "Dispose never completed");
+        Assert.True(callbackFinished);
     }
 }
 ```
@@ -4647,11 +4796,19 @@ public sealed class RepoWatcher : IDisposable
     {
         lock (_gate)
         {
+            if (_disposed) return;
+
             _disposed = true;
             _watcher?.Dispose();
             _watcher = null;
-            _timer.Dispose();
         }
+
+        // Waited on outside the lock: Fire() acquires the same gate, so blocking here
+        // while holding it would deadlock. Timer.Dispose(WaitHandle) signals only once
+        // every in-flight callback has finished, so this method cannot return while a
+        // callback is still about to invoke _onChanged.
+        using var callbacksFinished = new ManualResetEvent(false);
+        if (_timer.Dispose(callbacksFinished)) callbacksFinished.WaitOne();
     }
 
     private void OnFileSystemEvent(object sender, FileSystemEventArgs e) => Restart();
@@ -4714,7 +4871,7 @@ public sealed class ThemeController
 - [ ] **Step 5: Run the tests**
 
 Run: `dotnet test tests/GitHelper.App.Tests/GitHelper.App.Tests.csproj --filter "RepoWatcherTests|ThemeControllerTests"`
-Expected: PASS, 9 tests (6 watcher facts, 2 theme theory cases, 1 theme fact).
+Expected: PASS, 10 tests (7 watcher facts, 2 theme theory cases, 1 theme fact).
 
 If `Lock` is not recognised, the project is not on .NET 9 or later — confirm `net10.0` in the csproj. `private readonly object _gate = new();` also works.
 
@@ -5568,8 +5725,9 @@ Create `src/GitHelper.App/Views/ExplainPanelView.axaml`:
         </StackPanel>
 
         <!-- Inline confirmation, for Caution actions. Destructive ones open a modal
-             instead, decided by the viewmodel. -->
-        <StackPanel Spacing="6" IsVisible="{Binding RequiresConfirmation}">
+             instead of this panel, decided by the viewmodel (RequiresInlineConfirmation
+             excludes Destructive so the modal is the only gate for it). -->
+        <StackPanel Spacing="6" IsVisible="{Binding RequiresInlineConfirmation}">
           <CheckBox Content="Stop explaining this one"
                     IsChecked="{Binding SuppressExplanationForThisAction}" />
           <Button Content="{Binding Title, StringFormat='Confirm — {0}'}"

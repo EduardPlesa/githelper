@@ -1,6 +1,6 @@
 using GitHelper.Core.Git;
 
-namespace GitHelper.Core.Tests;
+namespace GitHelper.TestSupport;
 
 /// <summary>A real git repository in a temp directory, deleted on dispose.</summary>
 public sealed class TestRepo : IDisposable

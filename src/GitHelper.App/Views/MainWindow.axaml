@@ -1,0 +1,11 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GitHelper.App.Views.MainWindow"
+        Title="GitHelper"
+        Width="1100" Height="700"
+        MinWidth="800" MinHeight="500">
+  <TextBlock Text="GitHelper"
+             HorizontalAlignment="Center"
+             VerticalAlignment="Center"
+             FontSize="24" />
+</Window>

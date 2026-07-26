@@ -230,6 +230,24 @@ public class ExplainPanelViewModelTests
     }
 
     [Fact]
+    public async Task SuppressExplanationForThisAction_IsNeverPersistedForADestructiveAction()
+    {
+        // Critical safety rule: a user must never be able to silence the confirmation on
+        // a destructive action. This guard must hold even when the action actually runs.
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "modified\n");
+        var (panel, confirmations, settings) = NewPanel();
+        confirmations.NextAnswer = true;
+
+        await panel.ShowAsync(repo.Path, new ActionRequest("discard-file", Path: "README.md"));
+        panel.SuppressExplanationForThisAction = true;
+        await panel.RunAsync();
+
+        Assert.DoesNotContain("discard-file", settings.Current.SuppressedExplanations);
+        Assert.Equal(0, settings.SaveCount);
+    }
+
+    [Fact]
     public async Task Clear_ReturnsToTheEmptyState()
     {
         using var repo = await TestRepo.CreateAsync();

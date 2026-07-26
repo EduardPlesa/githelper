@@ -1488,6 +1488,7 @@ Create `src/GitHelper.App/Rendering/ContentBlockRenderer.cs`:
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Layout;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.Input;
 using GitHelper.Core.Content;
@@ -2039,6 +2040,26 @@ public class ExplainPanelViewModelTests
     }
 
     [Fact]
+    public async Task SuppressExplanationForThisAction_IsNeverPersistedForADestructiveAction()
+    {
+        // Silencing the one action that can permanently lose work must be impossible, so
+        // the suppression must not persist even when the user ticks the box and lets the
+        // action proceed. Accepting the confirmation is deliberate: the guard sits *after*
+        // the action runs, so declining would return early and never reach it.
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "vandalised\n");
+        var (panel, confirmations, settings) = NewPanel();
+        confirmations.NextAnswer = true;
+
+        await panel.ShowAsync(repo.Path, new ActionRequest("discard-file", Path: "README.md"));
+        panel.SuppressExplanationForThisAction = true;
+        await panel.RunAsync();
+
+        Assert.DoesNotContain("discard-file", settings.Current.SuppressedExplanations);
+        Assert.Equal(0, settings.SaveCount);
+    }
+
+    [Fact]
     public async Task Clear_ReturnsToTheEmptyState()
     {
         using var repo = await TestRepo.CreateAsync();
@@ -2392,14 +2413,14 @@ public sealed class StubConfirmationDialog : IConfirmationDialog
 - [ ] **Step 7: Run the tests**
 
 Run: `dotnet test tests/GitHelper.App.Tests/GitHelper.App.Tests.csproj --filter "SlotResolverTests|ExplainPanelViewModelTests"`
-Expected: PASS, 21 tests.
+Expected: PASS, 22 tests.
 
 `RunAsync_SwitchesToTheErrorStateAndKeepsRawOutputReachable` points a remote at an unreachable host, so expect it to take a few seconds while git gives up.
 
 - [ ] **Step 8: Run the whole suite**
 
 Run: `dotnet test`
-Expected: PASS, 190 tests.
+Expected: PASS, 191 tests.
 
 - [ ] **Step 9: Commit**
 

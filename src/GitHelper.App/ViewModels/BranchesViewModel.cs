@@ -62,11 +62,21 @@ public sealed partial class BranchesViewModel : ViewModelBase
         SyncSummary = DescribeSync(state);
     }
 
-    /// <summary>Clears the name box once a branch observably appeared.</summary>
+    /// <summary>
+    /// Clears the name box only when a branch with that name observably appeared, mirroring
+    /// how ChangesViewModel treats the commit box. Reacting to bare success instead would
+    /// discard the typed name when the user clicks Fetch or Pull before Create.
+    /// </summary>
     public void OnActionCompleted(ActionOutcome outcome)
     {
-        if (outcome.Success && !string.IsNullOrEmpty(NewBranchName))
-            NewBranchName = string.Empty;
+        if (!outcome.Success || string.IsNullOrEmpty(NewBranchName)) return;
+
+        var existedBefore = outcome.Before.Branches.Any(
+            b => string.Equals(b.Name, NewBranchName, StringComparison.Ordinal));
+        var existsAfter = outcome.After.Branches.Any(
+            b => string.Equals(b.Name, NewBranchName, StringComparison.Ordinal));
+
+        if (!existedBefore && existsAfter) NewBranchName = string.Empty;
     }
 
     /// <summary>

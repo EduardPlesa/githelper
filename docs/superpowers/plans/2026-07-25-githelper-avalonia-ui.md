@@ -3658,6 +3658,7 @@ public class BranchesViewModelTests
     [InlineData(0, 0, "in step with origin/main")]
     [InlineData(1, 0, "1 commit to send")]
     [InlineData(3, 0, "3 commits to send")]
+    [InlineData(0, 1, "1 commit to get")]
     [InlineData(0, 2, "2 commits to get")]
     [InlineData(2, 3, "2 to send, 3 to get")]
     public void SyncSummary_PhrasesAheadAndBehindPlainly(int ahead, int behind, string expected)
@@ -3720,14 +3721,36 @@ public class BranchesViewModelTests
     }
 
     [Fact]
-    public void OnActionCompleted_ClearsTheBranchNameBoxAfterASuccessfulAction()
+    public void OnActionCompleted_ClearsTheBranchNameBoxWhenThatBranchAppeared()
     {
         var f = NewFixture();
         f.Branches.NewBranchName = "feature";
 
-        f.Branches.OnActionCompleted(SuccessfulOutcome());
+        var before = State(branches: new[] { new BranchInfo("main", null) });
+        var after = State(branches: new[]
+        {
+            new BranchInfo("main", null),
+            new BranchInfo("feature", null),
+        });
+
+        f.Branches.OnActionCompleted(OutcomeBetween(before, after));
 
         Assert.Equal(string.Empty, f.Branches.NewBranchName);
+    }
+
+    [Fact]
+    public void OnActionCompleted_KeepsTheTypedNameWhenAnUnrelatedActionSucceeded()
+    {
+        // Typing a branch name and then clicking Fetch or Pull must not silently
+        // discard it — only an actual branch creation should clear the box.
+        var f = NewFixture();
+        f.Branches.NewBranchName = "feature";
+
+        var state = State(branches: new[] { new BranchInfo("main", null) });
+
+        f.Branches.OnActionCompleted(OutcomeBetween(state, state));
+
+        Assert.Equal("feature", f.Branches.NewBranchName);
     }
 
     [Fact]
@@ -3736,23 +3759,27 @@ public class BranchesViewModelTests
         var f = NewFixture();
         f.Branches.NewBranchName = "feature";
 
-        f.Branches.OnActionCompleted(SuccessfulOutcome() with { Success = false });
+        var before = State(branches: new[] { new BranchInfo("main", null) });
+        var after = State(branches: new[]
+        {
+            new BranchInfo("main", null),
+            new BranchInfo("feature", null),
+        });
+
+        f.Branches.OnActionCompleted(OutcomeBetween(before, after) with { Success = false });
 
         Assert.Equal("feature", f.Branches.NewBranchName);
     }
 
-    private static ActionOutcome SuccessfulOutcome()
-    {
-        var state = State();
-        return new ActionOutcome(
+    private static ActionOutcome OutcomeBetween(RepoState before, RepoState after)
+        => new(
             Success: true,
             Result: new GitCommandResult(new[] { "switch", "-c", "feature" }, "", "", 0, TimeSpan.Zero),
             Narration: "created",
             Error: null,
-            Before: state,
-            After: state,
+            Before: before,
+            After: after,
             Blockers: Array.Empty<PreconditionResult>());
-    }
 
     [Fact]
     public async Task SwitchCommand_PreviewsWithoutSwitchingBecauseSwitchingIsGated()
@@ -3941,11 +3968,21 @@ public sealed partial class BranchesViewModel : ViewModelBase
         SyncSummary = DescribeSync(state);
     }
 
-    /// <summary>Clears the name box once a branch observably appeared.</summary>
+    /// <summary>
+    /// Clears the name box only when a branch with that name observably appeared, mirroring
+    /// how ChangesViewModel treats the commit box. Reacting to bare success instead would
+    /// discard the typed name when the user clicks Fetch or Pull before Create.
+    /// </summary>
     public void OnActionCompleted(ActionOutcome outcome)
     {
-        if (outcome.Success && !string.IsNullOrEmpty(NewBranchName))
-            NewBranchName = string.Empty;
+        if (!outcome.Success || string.IsNullOrEmpty(NewBranchName)) return;
+
+        var existedBefore = outcome.Before.Branches.Any(
+            b => string.Equals(b.Name, NewBranchName, StringComparison.Ordinal));
+        var existsAfter = outcome.After.Branches.Any(
+            b => string.Equals(b.Name, NewBranchName, StringComparison.Ordinal));
+
+        if (!existedBefore && existsAfter) NewBranchName = string.Empty;
     }
 
     /// <summary>
@@ -3982,7 +4019,7 @@ public sealed partial class BranchesViewModel : ViewModelBase
 - [ ] **Step 5: Run the tests**
 
 Run: `dotnet test tests/GitHelper.App.Tests/GitHelper.App.Tests.csproj --filter BranchesViewModelTests`
-Expected: PASS, 20 tests (15 facts plus 5 theory cases).
+Expected: PASS, 22 tests (16 facts plus 6 theory cases).
 
 - [ ] **Step 6: Run the whole suite**
 

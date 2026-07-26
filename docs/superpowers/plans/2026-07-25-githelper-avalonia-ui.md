@@ -1938,7 +1938,61 @@ public class ExplainPanelViewModelTests
         await panel.ShowAsync(repo.Path, new ActionRequest("discard-file", Path: "README.md"));
 
         Assert.True(panel.RequiresConfirmation);
+        // ShouldRunImmediately is true here: it tracks the *inline* gate only. The
+        // suppression setting never reaches the modal, which RunAsync always consults for
+        // a Destructive action regardless of this flag — that is the "never suppressed" part.
+        Assert.True(panel.ShouldRunImmediately);
+    }
+
+    [Fact]
+    public async Task RequiresInlineConfirmation_IsFalseForADestructiveActionSoTheModalIsTheOnlyGate()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "changed\n");
+        var (panel, _, _) = NewPanel();
+
+        await panel.ShowAsync(repo.Path, new ActionRequest("discard-file", Path: "README.md"));
+
+        // Gated, but not by an inline button — the modal is the gate, deliberately in a
+        // different screen position from the Confirm buttons used for Caution actions.
+        Assert.True(panel.RequiresConfirmation);
+        Assert.False(panel.RequiresInlineConfirmation);
+        Assert.True(panel.ShouldRunImmediately);
+    }
+
+    [Fact]
+    public async Task RequiresInlineConfirmation_IsTrueForACautionAction()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("a.txt", "x\n");
+        await repo.GitAsync("add", "-A");
+        var (panel, _, _) = NewPanel();
+
+        await panel.ShowAsync(repo.Path, new ActionRequest("commit", Message: "m"));
+
+        Assert.True(panel.RequiresConfirmation);
+        Assert.True(panel.RequiresInlineConfirmation);
         Assert.False(panel.ShouldRunImmediately);
+    }
+
+    [Fact]
+    public async Task ShowAndRunIfUngatedAsync_ReachesTheModalForADestructiveAction()
+    {
+        // Regression test: a Destructive action must reach RunAsync so the modal opens.
+        // When ShouldRunImmediately tracked RequiresConfirmation, clicking Discard did
+        // nothing at all — the modal was never consulted.
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "vandalised\n");
+        var (panel, confirmations, _) = NewPanel();
+        confirmations.NextAnswer = false;
+
+        await panel.ShowAndRunIfUngatedAsync(
+            repo.Path, new ActionRequest("discard-file", Path: "README.md"));
+
+        Assert.Equal(1, confirmations.CallCount);
+        Assert.Equal(
+            "vandalised\n",
+            File.ReadAllText(Path.Combine(repo.Path, "README.md")).Replace("\r\n", "\n"));
     }
 
     [Fact]
@@ -2435,14 +2489,14 @@ public sealed class StubConfirmationDialog : IConfirmationDialog
 - [ ] **Step 7: Run the tests**
 
 Run: `dotnet test tests/GitHelper.App.Tests/GitHelper.App.Tests.csproj --filter "SlotResolverTests|ExplainPanelViewModelTests"`
-Expected: PASS, 22 tests.
+Expected: PASS, 25 tests.
 
 `RunAsync_SwitchesToTheErrorStateAndKeepsRawOutputReachable` points a remote at an unreachable host, so expect it to take a few seconds while git gives up.
 
 - [ ] **Step 8: Run the whole suite**
 
 Run: `dotnet test`
-Expected: PASS, 191 tests.
+Expected: PASS, 194 tests.
 
 - [ ] **Step 9: Commit**
 
@@ -2610,7 +2664,7 @@ Expected: PASS, 5 tests.
 - [ ] **Step 5: Run the whole suite**
 
 Run: `dotnet test`
-Expected: PASS, 195 tests.
+Expected: PASS, 199 tests.
 
 - [ ] **Step 6: Commit**
 

@@ -4575,12 +4575,18 @@ public class RepoWatcherTests : IDisposable
     public async Task Watch_CoalescesABurstOfChangesIntoASingleCallback()
     {
         var fired = 0;
-        using var watcher = new RepoWatcher(TimeSpan.FromMilliseconds(150), () => Interlocked.Increment(ref fired));
+        using var watcher = new RepoWatcher(TimeSpan.FromMilliseconds(100), () => Interlocked.Increment(ref fired));
         watcher.Watch(_dir);
 
-        // Stands in for the many files a single `git commit` writes under .git.
-        for (var i = 0; i < 25; i++)
+        // Deliberately spread across ~300ms, comfortably longer than the 100ms debounce.
+        // A tight loop would finish inside the window and pass even against a throttling
+        // implementation, proving nothing: the debounce must RESTART on every event, so a
+        // steady stream of changes yields exactly one callback after the stream stops.
+        for (var i = 0; i < 12; i++)
+        {
             File.WriteAllText(Path.Combine(_dir, $"f{i}.txt"), i.ToString());
+            await Task.Delay(25);
+        }
 
         Assert.True(await WaitUntilAsync(() => Volatile.Read(ref fired) >= 1));
         await Task.Delay(300); // let any further callbacks arrive
@@ -4642,6 +4648,36 @@ public class RepoWatcherTests : IDisposable
 
         // A recents entry can point at a deleted folder; this must not throw.
         watcher.Watch(Path.Combine(_dir, "gone"));
+    }
+
+    [Fact]
+    public async Task Dispose_WaitsForACallbackThatIsAlreadyRunning()
+    {
+        using var callbackStarted = new ManualResetEventSlim(false);
+        using var releaseCallback = new ManualResetEventSlim(false);
+        var callbackFinished = false;
+
+        var watcher = new RepoWatcher(TimeSpan.FromMilliseconds(50), () =>
+        {
+            callbackStarted.Set();
+            releaseCallback.Wait(TimeSpan.FromSeconds(5));
+            callbackFinished = true;
+        });
+        watcher.Watch(_dir);
+
+        File.WriteAllText(Path.Combine(_dir, "a.txt"), "x");
+        Assert.True(callbackStarted.Wait(TimeSpan.FromSeconds(5)), "callback never started");
+
+        // Dispose on another thread: it must block until the running callback completes,
+        // otherwise a consumer could tear down state the callback is still touching.
+        var dispose = Task.Run(() => watcher.Dispose());
+        await Task.WhenAny(dispose, Task.Delay(TimeSpan.FromMilliseconds(250)));
+        Assert.False(dispose.IsCompleted, "Dispose returned while the callback was still running");
+
+        releaseCallback.Set();
+        await Task.WhenAny(dispose, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.True(dispose.IsCompleted, "Dispose never completed");
+        Assert.True(callbackFinished);
     }
 }
 ```
@@ -4760,11 +4796,19 @@ public sealed class RepoWatcher : IDisposable
     {
         lock (_gate)
         {
+            if (_disposed) return;
+
             _disposed = true;
             _watcher?.Dispose();
             _watcher = null;
-            _timer.Dispose();
         }
+
+        // Waited on outside the lock: Fire() acquires the same gate, so blocking here
+        // while holding it would deadlock. Timer.Dispose(WaitHandle) signals only once
+        // every in-flight callback has finished, so this method cannot return while a
+        // callback is still about to invoke _onChanged.
+        using var callbacksFinished = new ManualResetEvent(false);
+        if (_timer.Dispose(callbacksFinished)) callbacksFinished.WaitOne();
     }
 
     private void OnFileSystemEvent(object sender, FileSystemEventArgs e) => Restart();
@@ -4827,7 +4871,7 @@ public sealed class ThemeController
 - [ ] **Step 5: Run the tests**
 
 Run: `dotnet test tests/GitHelper.App.Tests/GitHelper.App.Tests.csproj --filter "RepoWatcherTests|ThemeControllerTests"`
-Expected: PASS, 9 tests (6 watcher facts, 2 theme theory cases, 1 theme fact).
+Expected: PASS, 10 tests (7 watcher facts, 2 theme theory cases, 1 theme fact).
 
 If `Lock` is not recognised, the project is not on .NET 9 or later — confirm `net10.0` in the csproj. `private readonly object _gate = new();` also works.
 

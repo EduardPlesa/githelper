@@ -43,12 +43,18 @@ public class RepoWatcherTests : IDisposable
     public async Task Watch_CoalescesABurstOfChangesIntoASingleCallback()
     {
         var fired = 0;
-        using var watcher = new RepoWatcher(TimeSpan.FromMilliseconds(150), () => Interlocked.Increment(ref fired));
+        using var watcher = new RepoWatcher(TimeSpan.FromMilliseconds(100), () => Interlocked.Increment(ref fired));
         watcher.Watch(_dir);
 
-        // Stands in for the many files a single `git commit` writes under .git.
-        for (var i = 0; i < 25; i++)
+        // Deliberately spread across ~300ms, comfortably longer than the 100ms debounce.
+        // A tight loop would finish inside the window and pass even against a throttling
+        // implementation, proving nothing: the debounce must RESTART on every event, so a
+        // steady stream of changes yields exactly one callback after the stream stops.
+        for (var i = 0; i < 12; i++)
+        {
             File.WriteAllText(Path.Combine(_dir, $"f{i}.txt"), i.ToString());
+            await Task.Delay(25);
+        }
 
         Assert.True(await WaitUntilAsync(() => Volatile.Read(ref fired) >= 1));
         await Task.Delay(300); // let any further callbacks arrive
@@ -110,5 +116,35 @@ public class RepoWatcherTests : IDisposable
 
         // A recents entry can point at a deleted folder; this must not throw.
         watcher.Watch(Path.Combine(_dir, "gone"));
+    }
+
+    [Fact]
+    public async Task Dispose_WaitsForACallbackThatIsAlreadyRunning()
+    {
+        using var callbackStarted = new ManualResetEventSlim(false);
+        using var releaseCallback = new ManualResetEventSlim(false);
+        var callbackFinished = false;
+
+        var watcher = new RepoWatcher(TimeSpan.FromMilliseconds(50), () =>
+        {
+            callbackStarted.Set();
+            releaseCallback.Wait(TimeSpan.FromSeconds(5));
+            callbackFinished = true;
+        });
+        watcher.Watch(_dir);
+
+        File.WriteAllText(Path.Combine(_dir, "a.txt"), "x");
+        Assert.True(callbackStarted.Wait(TimeSpan.FromSeconds(5)), "callback never started");
+
+        // Dispose on another thread: it must block until the running callback completes,
+        // otherwise a consumer could tear down state the callback is still touching.
+        var dispose = Task.Run(() => watcher.Dispose());
+        await Task.WhenAny(dispose, Task.Delay(TimeSpan.FromMilliseconds(250)));
+        Assert.False(dispose.IsCompleted, "Dispose returned while the callback was still running");
+
+        releaseCallback.Set();
+        await Task.WhenAny(dispose, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.True(dispose.IsCompleted, "Dispose never completed");
+        Assert.True(callbackFinished);
     }
 }

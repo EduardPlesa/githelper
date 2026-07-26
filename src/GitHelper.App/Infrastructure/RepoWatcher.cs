@@ -65,11 +65,19 @@ public sealed class RepoWatcher : IDisposable
     {
         lock (_gate)
         {
+            if (_disposed) return;
+
             _disposed = true;
             _watcher?.Dispose();
             _watcher = null;
-            _timer.Dispose();
         }
+
+        // Waited on outside the lock: Fire() acquires the same gate, so blocking here
+        // while holding it would deadlock. Timer.Dispose(WaitHandle) signals only once
+        // every in-flight callback has finished, so this method cannot return while a
+        // callback is still about to invoke _onChanged.
+        using var callbacksFinished = new ManualResetEvent(false);
+        if (_timer.Dispose(callbacksFinished)) callbacksFinished.WaitOne();
     }
 
     private void OnFileSystemEvent(object sender, FileSystemEventArgs e) => Restart();

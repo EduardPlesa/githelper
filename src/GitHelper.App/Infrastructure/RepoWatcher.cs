@@ -10,10 +10,10 @@ namespace GitHelper.App.Infrastructure;
 public sealed class RepoWatcher : IDisposable
 {
     private readonly TimeSpan _debounce;
-    private readonly Action _onChanged;
     private readonly Timer _timer;
     private readonly Lock _gate = new();
 
+    private Action _onChanged;
     private FileSystemWatcher? _watcher;
     private bool _disposed;
 
@@ -22,6 +22,16 @@ public sealed class RepoWatcher : IDisposable
         _debounce = debounce;
         _onChanged = onChanged;
         _timer = new Timer(_ => Fire(), null, Timeout.Infinite, Timeout.Infinite);
+    }
+
+    /// <summary>
+    /// Replaces the change callback. Needed because the watcher is constructed before the
+    /// viewmodel that wants to hear about changes.
+    /// </summary>
+    public Action OnChanged
+    {
+        get { lock (_gate) return _onChanged; }
+        set { lock (_gate) _onChanged = value; }
     }
 
     /// <summary>Starts watching a repository root, replacing any previous one.</summary>
@@ -33,6 +43,7 @@ public sealed class RepoWatcher : IDisposable
 
             _watcher?.Dispose();
             _watcher = null;
+            _timer.Change(Timeout.Infinite, Timeout.Infinite);
 
             // A recents entry can point at a folder that has since been deleted.
             if (!Directory.Exists(repoRoot)) return;
@@ -58,6 +69,17 @@ public sealed class RepoWatcher : IDisposable
 
             watcher.EnableRaisingEvents = true;
             _watcher = watcher;
+        }
+    }
+
+    /// <summary>Stops watching without disposing, so the watcher can be reused.</summary>
+    public void Stop()
+    {
+        lock (_gate)
+        {
+            _watcher?.Dispose();
+            _watcher = null;
+            _timer.Change(Timeout.Infinite, Timeout.Infinite);
         }
     }
 
@@ -93,12 +115,14 @@ public sealed class RepoWatcher : IDisposable
 
     private void Fire()
     {
+        Action callback;
         lock (_gate)
         {
             if (_disposed) return;
+            callback = _onChanged;
         }
 
         // Raised outside the lock so a slow handler cannot block incoming events.
-        _onChanged();
+        callback();
     }
 }

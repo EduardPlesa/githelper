@@ -189,7 +189,7 @@ public class ExplainPanelViewModelTests
         await repo.GitAsync("add", "-A");
         var (panel, _, _) = NewPanel();
         ActionOutcome? observed = null;
-        panel.ActionCompleted += (_, outcome) => observed = outcome;
+        panel.ActionCompletedAsync = (outcome, _) => { observed = outcome; return Task.CompletedTask; };
 
         await panel.ShowAsync(repo.Path, new ActionRequest("commit", Message: "add a file"));
         await panel.RunAsync();

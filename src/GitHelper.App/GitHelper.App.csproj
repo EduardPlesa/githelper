@@ -27,4 +27,8 @@
     <ProjectReference Include="..\GitHelper.Core\GitHelper.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="GitHelper.App.Tests" />
+  </ItemGroup>
+
 </Project>

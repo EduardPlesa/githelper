@@ -1,0 +1,84 @@
+name: Release
+
+# Publishes the single-file Windows executable and attaches it to a GitHub Release.
+#
+# Tagging is the trigger, so the exe on the Releases page always corresponds to an exact
+# commit — which is the problem this solves: a locally built exe silently goes stale on the
+# next commit and nothing tells you.
+#
+#   git tag v1.0.0 && git push origin v1.0.0
+#
+# workflow_dispatch is also allowed, for a build without cutting a release.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write # required to create the release
+
+jobs:
+  release:
+    # Must be Windows: the app publishes win-x64 self-contained, and the test suite drives a
+    # real git binary and renders through Avalonia's headless platform.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Test
+        # The suite runs real git against throwaway repositories. TestRepo sets user.name,
+        # user.email and commit.gpgsign locally, so it never depends on runner git config.
+        run: dotnet test --no-restore --verbosity minimal
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "value=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            # Manual run: no tag to read, so fall back to something traceable.
+            echo "value=0.0.0-dev+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish
+        run: >
+          dotnet publish src/GitHelper.App/GitHelper.App.csproj
+          -c Release
+          -o publish
+          -p:Version=${{ steps.version.outputs.value }}
+
+      - name: Name the artifact for humans
+        shell: bash
+        run: |
+          mv publish/GitHelper.App.exe "publish/GitHelper-${{ steps.version.outputs.value }}-win-x64.exe"
+
+      # Kept for manual runs, which produce no release to attach to.
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GitHelper-win-x64
+          path: publish/GitHelper-*.exe
+          if-no-files-found: error
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF#refs/tags/}" \
+            "publish/GitHelper-${{ steps.version.outputs.value }}-win-x64.exe" \
+            --title "GitHelper ${GITHUB_REF#refs/tags/}" \
+            --generate-notes

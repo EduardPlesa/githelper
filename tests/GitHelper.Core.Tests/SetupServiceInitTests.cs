@@ -27,6 +27,16 @@ public class SetupServiceInitTests : IDisposable
     private static SetupService NewService() =>
         new(new GitRunner(), new FolderInspector(), ContentLibrary.Load());
 
+    private static SetupService NewService(IGitRunner runner) =>
+        new(runner, new FolderInspector(), ContentLibrary.Load());
+
+    private sealed class StubRunner(GitCommandResult result) : IGitRunner
+    {
+        public Task<GitCommandResult> RunAsync(
+            string workingDirectory, IReadOnlyList<string> args, CancellationToken ct = default)
+            => Task.FromResult(result);
+    }
+
     [Fact]
     public async Task PreviewShowsTheCommandAndRunsNothing()
     {
@@ -83,5 +93,36 @@ public class SetupServiceInitTests : IDisposable
     {
         await Assert.ThrowsAsync<ArgumentException>(
             () => NewService().PreviewAsync(_dir, new SetupRequest("nonsense")));
+    }
+
+    // RunAsync shares the guard with PreviewAsync, but nothing exercised it: a change that
+    // dropped the RequireKnown call from RunAsync only would still pass every other test.
+    [Fact]
+    public async Task RunIsAlsoRejectedForAnUnknownOperation()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => NewService().RunAsync(_dir, new SetupRequest("nonsense")));
+    }
+
+    [Fact]
+    public async Task RunReportsFailureWithoutNarrationWhenGitInitFails()
+    {
+        // A stub stands in for a failing `git init` because forcing that to fail for real is
+        // not reliable on Windows (e.g. permission denial depends on ACLs we cannot control here).
+        var failure = new GitCommandResult(
+            new[] { "init", "-b", "main" },
+            StdOut: string.Empty,
+            StdErr: "fatal: Unable to create '.git/index.lock': Permission denied",
+            ExitCode: 128,
+            Duration: TimeSpan.FromMilliseconds(5));
+        var service = NewService(new StubRunner(failure));
+
+        var outcome = await service.RunAsync(_dir, new SetupRequest("init-repository"));
+
+        Assert.False(outcome.Success);
+        // A narration on a failed init would tell a beginner the folder is now tracked when it
+        // is not, so this must stay null even though Error is populated.
+        Assert.Null(outcome.Narration);
+        Assert.NotNull(outcome.Error);
     }
 }

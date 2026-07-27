@@ -122,6 +122,8 @@ public sealed class ContentBlockRenderer(
             Background = new SolidColorBrush(Color.FromArgb(20, 128, 128, 128)),
         },
 
+        StrongSpan strong => new Run(strong.Text) { FontWeight = FontWeight.Bold },
+
         TermSpan term => new InlineUIContainer(RenderTerm(term, allowTermTooltips)),
 
         // SlotBinder resolves slots before content reaches a view. Reaching here means a

@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Headless.XUnit;
+using Avalonia.Media;
 using GitHelper.App.Rendering;
 using GitHelper.Core.Content;
 
@@ -96,6 +97,30 @@ public class ContentBlockRendererTests
         Assert.Equal(
             new[] { "Run ", "git add", " to use the ", "staging area", "." },
             TextOf(rendered));
+    }
+
+    [AvaloniaFact]
+    public void Render_StrongSpanIsBoldAndKeepsItsTextInline()
+    {
+        var blocks = new ContentBlock[]
+        {
+            new ParagraphBlock(new InlineSpan[]
+            {
+                new StrongSpan("This deletes your edits."),
+                new TextSpan(" Nothing can bring them back."),
+            }),
+        };
+
+        var rendered = NewRenderer().Render(blocks);
+
+        Assert.Equal(
+            new[] { "This deletes your edits.", " Nothing can bring them back." },
+            TextOf(rendered));
+
+        var strong = ((TextBlock)((StackPanel)rendered).Children[0]).Inlines!
+            .OfType<Run>()
+            .First();
+        Assert.Equal(FontWeight.Bold, strong.FontWeight);
     }
 
     [AvaloniaFact]

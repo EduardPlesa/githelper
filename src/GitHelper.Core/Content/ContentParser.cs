@@ -173,8 +173,8 @@ public static partial class ContentParser
     internal static IReadOnlyList<ContentBlock> ParseBlocksForTerm(string sectionText)
         => ParseBlocks(sectionText);
 
-    // Matches, in one pass: `code`, [[term]] or [[term|display]], and {slot}.
-    [GeneratedRegex(@"`(?<code>[^`]+)`|\[\[(?<term>[^\]|]+)(\|(?<display>[^\]]+))?\]\]|\{(?<slot>[A-Za-z][A-Za-z0-9]*)\}")]
+    // Matches, in one pass: **strong**, `code`, [[term]] or [[term|display]], and {slot}.
+    [GeneratedRegex(@"\*\*(?<strong>[^*]+)\*\*|`(?<code>[^`]+)`|\[\[(?<term>[^\]|]+)(\|(?<display>[^\]]+))?\]\]|\{(?<slot>[A-Za-z][A-Za-z0-9]*)\}")]
     private static partial Regex InlinePattern();
 
     private static IReadOnlyList<InlineSpan> ParseInline(string text)
@@ -187,7 +187,11 @@ public static partial class ContentParser
             if (match.Index > position)
                 spans.Add(new TextSpan(text[position..match.Index]));
 
-            if (match.Groups["code"].Success)
+            if (match.Groups["strong"].Success)
+            {
+                spans.Add(new StrongSpan(match.Groups["strong"].Value));
+            }
+            else if (match.Groups["code"].Success)
             {
                 spans.Add(new CodeSpan(match.Groups["code"].Value));
             }

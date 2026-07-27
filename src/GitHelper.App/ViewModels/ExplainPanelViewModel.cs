@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using GitHelper.App.Infrastructure;
 using GitHelper.App.Settings;
 using GitHelper.Core.Actions;
@@ -43,6 +44,10 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
         _actions = actions;
         _confirmations = confirmations;
         _settings = settings;
+
+        ConfirmCommand = new AsyncRelayCommand(() => RunAsync(), () => CanRun);
+        ToggleTechnicalDetailsCommand = new RelayCommand(
+            () => ShowTechnicalDetails = !ShowTechnicalDetails);
     }
 
     [ObservableProperty] private ExplainPanelState _panelState = ExplainPanelState.Empty;
@@ -65,6 +70,20 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     /// refresh completes before RunAsync returns. A plain event could not be awaited.
     /// </summary>
     public Func<ActionOutcome, CancellationToken, Task>? ActionCompletedAsync { get; set; }
+
+    public IAsyncRelayCommand ConfirmCommand { get; }
+
+    public IRelayCommand ToggleTechnicalDetailsCommand { get; }
+
+    // Compiled bindings cannot compare an enum to a constant, so the conditions the view
+    // needs are exposed as booleans rather than pushed into XAML converters.
+    public bool IsEmpty => PanelState == ExplainPanelState.Empty;
+
+    public bool HasBlockers => Blockers.Count > 0;
+
+    public bool HasNarration => !string.IsNullOrEmpty(Narration);
+
+    public bool HasError => Error is not null;
 
     /// <summary>
     /// True when the confirmation belongs inline in the panel. Destructive actions are
@@ -197,7 +216,23 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
                + "They were never committed, so nothing can bring them back.";
     }
 
-    partial void OnCanRunChanged(bool value) => OnPropertyChanged(nameof(ShouldRunImmediately));
+    partial void OnCanRunChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShouldRunImmediately));
+        ConfirmCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnPanelStateChanged(ExplainPanelState value)
+        => OnPropertyChanged(nameof(IsEmpty));
+
+    partial void OnBlockersChanged(IReadOnlyList<string> value)
+        => OnPropertyChanged(nameof(HasBlockers));
+
+    partial void OnNarrationChanged(string? value)
+        => OnPropertyChanged(nameof(HasNarration));
+
+    partial void OnErrorChanged(TranslatedError? value)
+        => OnPropertyChanged(nameof(HasError));
 
     partial void OnRequiresConfirmationChanged(bool value)
     {

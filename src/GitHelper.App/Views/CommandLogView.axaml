@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GitHelper.App.ViewModels"
+             xmlns:git="using:GitHelper.Core.Git"
+             x:Class="GitHelper.App.Views.CommandLogView"
+             x:DataType="vm:CommandLogViewModel">
+  <Border BorderThickness="0,1,0,0" BorderBrush="#40808080">
+    <Grid RowDefinitions="Auto,*">
+
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="8,4">
+        <TextBlock Text="Commands run this session" FontWeight="Bold" Opacity="0.8" />
+        <Button Grid.Column="1" Name="CopyAllButton" Content="Copy all" Click="OnCopyAll" />
+      </Grid>
+
+      <ScrollViewer Grid.Row="1" Name="LogScroller">
+        <ItemsControl Name="EntriesHost" ItemsSource="{Binding Entries}" Margin="8,0,8,8">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="git:CommandLogEntry">
+              <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                <TextBlock Text="{Binding CommandLine}"
+                           FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding ExitCode, StringFormat='exit {0}'}"
+                           Opacity="0.6"
+                           Margin="8,0,0,0" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+    </Grid>
+  </Border>
+</UserControl>

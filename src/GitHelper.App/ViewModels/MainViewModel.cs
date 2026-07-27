@@ -81,6 +81,21 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     public BranchesViewModel Branches { get; }
 
+    /// <summary>Sidebar entries. Bound to a ListBox, so no enum converter is needed.</summary>
+    public IReadOnlyList<MainTab> Tabs { get; } =
+        new[] { MainTab.Changes, MainTab.History, MainTab.Branches };
+
+    /// <summary>
+    /// The child viewmodel for the selected tab. The window maps each viewmodel type to its
+    /// view with a DataTemplate, so the centre pane needs no visibility logic in XAML.
+    /// </summary>
+    public ViewModelBase CurrentTab => SelectedTab switch
+    {
+        MainTab.History => History,
+        MainTab.Branches => Branches,
+        _ => Changes,
+    };
+
     /// <summary>
     /// The highest number of refreshes ever observed running at once. Exposed for tests:
     /// the gate's whole purpose is that this never exceeds one, and asserting that directly
@@ -205,6 +220,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
         return Startup.InitializeAsync();
     }
+
+    partial void OnSelectedTabChanged(MainTab value) => OnPropertyChanged(nameof(CurrentTab));
 
     private void CycleTheme()
     {

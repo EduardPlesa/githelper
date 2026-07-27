@@ -20,6 +20,18 @@ public class ThemeControllerTests
     }
 
     [AvaloniaFact]
+    public async Task Apply_FromABackgroundThreadDoesNotThrow()
+    {
+        // RequestedThemeVariant has UI-thread affinity. Any caller off the UI thread used to
+        // crash with "Call from invalid thread", which made every plain [Fact] touching the
+        // theme fail as soon as some other test had built the headless Application.
+        var exception = await Record.ExceptionAsync(
+            () => Task.Run(() => new ThemeController().Apply(AppTheme.Dark)));
+
+        Assert.Null(exception);
+    }
+
+    [AvaloniaFact]
     public void Apply_SystemMeansFollowTheOperatingSystem()
     {
         new ThemeController().Apply(AppTheme.Dark);

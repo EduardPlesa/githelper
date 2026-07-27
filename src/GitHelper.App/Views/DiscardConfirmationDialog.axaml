@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GitHelper.App.Views.DiscardConfirmationDialog"
+        Title="Are you sure?"
+        Width="460" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="20" Spacing="14">
+    <TextBlock Name="TitleText" FontSize="16" FontWeight="Bold" TextWrapping="Wrap" />
+    <TextBlock Name="ConsequenceLabel" TextWrapping="Wrap" />
+    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+      <Button Name="CancelButton" Content="Keep my changes" Click="OnCancel" IsDefault="True" />
+      <Button Name="ConfirmButton" Content="Discard them" Click="OnConfirm" />
+    </StackPanel>
+  </StackPanel>
+</Window>

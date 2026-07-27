@@ -1,0 +1,89 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GitHelper.App.ViewModels"
+             x:Class="GitHelper.App.Views.ExplainPanelView"
+             x:DataType="vm:ExplainPanelViewModel">
+  <ScrollViewer>
+    <StackPanel Margin="12" Spacing="10">
+
+      <!-- Empty state: the quiet placeholder. -->
+      <TextBlock IsVisible="{Binding IsEmpty}"
+                 Text="Select a file or action to see what it does."
+                 TextWrapping="Wrap"
+                 Opacity="0.7" />
+
+      <StackPanel Spacing="10" IsVisible="{Binding !IsEmpty}">
+
+        <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" />
+
+        <!-- The four headings, always in this order. -->
+        <TextBlock Text="What this does" FontWeight="Bold" />
+        <StackPanel Name="WhatHost" Spacing="8" />
+
+        <TextBlock Text="The command" FontWeight="Bold" />
+        <Border Padding="8" CornerRadius="4" Background="#20808080">
+          <TextBlock Text="{Binding CommandLine}"
+                     FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                     TextWrapping="Wrap" />
+        </Border>
+
+        <TextBlock Text="What could go wrong" FontWeight="Bold" />
+        <StackPanel Name="RisksHost" Spacing="8" />
+
+        <TextBlock Text="How to undo this" FontWeight="Bold" />
+        <StackPanel Name="UndoHost" Spacing="8" />
+
+        <!-- Blockers: why this cannot run right now. -->
+        <StackPanel Spacing="6" IsVisible="{Binding HasBlockers}">
+          <TextBlock Text="Not right now" FontWeight="Bold" />
+          <ItemsControl ItemsSource="{Binding Blockers}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <!-- Inline confirmation, for Caution actions. Destructive ones open a modal
+             instead, which is why this binds to RequiresInlineConfirmation rather than
+             RequiresConfirmation — otherwise a Destructive action would show both gates. -->
+        <StackPanel Spacing="6" IsVisible="{Binding RequiresInlineConfirmation}">
+          <CheckBox Content="Stop explaining this one"
+                    IsChecked="{Binding SuppressExplanationForThisAction}" />
+          <Button Content="{Binding Title, StringFormat='Confirm — {0}'}"
+                  Command="{Binding ConfirmCommand}"
+                  HorizontalAlignment="Stretch" />
+        </StackPanel>
+
+        <!-- What actually happened. -->
+        <Border IsVisible="{Binding HasNarration}"
+                Padding="8" CornerRadius="4" Background="#2000A000">
+          <TextBlock Text="{Binding Narration}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- Translated error, with raw output always reachable. -->
+        <StackPanel Spacing="6" IsVisible="{Binding HasError}">
+          <TextBlock Text="{Binding Error.Summary}" FontWeight="Bold" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding Error.Explanation}" TextWrapping="Wrap" />
+          <ItemsControl ItemsSource="{Binding Error.NextSteps}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Button Content="Show technical details"
+                  Command="{Binding ToggleTechnicalDetailsCommand}" />
+          <Border IsVisible="{Binding ShowTechnicalDetails}"
+                  Padding="8" CornerRadius="4" Background="#20808080">
+            <SelectableTextBlock Text="{Binding Error.RawOutput}"
+                                 FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                                 TextWrapping="Wrap" />
+          </Border>
+        </StackPanel>
+
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

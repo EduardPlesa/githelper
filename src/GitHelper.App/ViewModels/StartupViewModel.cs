@@ -43,6 +43,7 @@ public sealed partial class StartupViewModel : ViewModelBase
         _environment = environment;
 
         BrowseCommand = new AsyncRelayCommand(BrowseAsync);
+        SaveIdentityCommand = new AsyncRelayCommand(SaveIdentityAsync, () => CanSaveIdentity);
     }
 
     public ObservableCollection<RecentRepoViewModel> Recents { get; } = new();
@@ -52,8 +53,30 @@ public sealed partial class StartupViewModel : ViewModelBase
     [ObservableProperty] private string? _blockingFixHint;
     [ObservableProperty] private string? _errorMessage;
     [ObservableProperty] private bool _identityPromptNeeded;
+    [ObservableProperty] private string _identityName = string.Empty;
+    [ObservableProperty] private string _identityEmail = string.Empty;
+    [ObservableProperty] private string? _identitySaveError;
 
     public IAsyncRelayCommand BrowseCommand { get; }
+
+    public IAsyncRelayCommand SaveIdentityCommand { get; }
+
+    public bool CanSaveIdentity =>
+        !string.IsNullOrWhiteSpace(IdentityName) && !string.IsNullOrWhiteSpace(IdentityEmail);
+
+    public bool HasIdentitySaveError => !string.IsNullOrEmpty(IdentitySaveError);
+
+    // Compiled bindings cannot compare an enum to a constant, so the overlay's conditions
+    // are exposed as booleans instead of pushed into XAML converters.
+    public bool IsChecking => State == StartupState.Checking;
+
+    public bool IsAwaitingChoice => State == StartupState.AwaitingChoice;
+
+    public bool IsGitMissing => State == StartupState.GitMissing;
+
+    public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
+
+    public bool HasRecents => Recents.Count > 0;
 
     /// <summary>
     /// Invoked with the repository root once a folder validates, and awaited — the overlay
@@ -114,6 +137,27 @@ public sealed partial class StartupViewModel : ViewModelBase
         await OpenAsync(chosen);
     }
 
+    private async Task SaveIdentityAsync()
+    {
+        IdentitySaveError = null;
+
+        var result = await _environment.SetIdentityAsync(
+            IdentityName.Trim(), IdentityEmail.Trim());
+
+        if (!result.Success)
+        {
+            // Never report success when git refused — the first commit would then fail
+            // exactly as confusingly as if the prompt had never appeared.
+            IdentitySaveError =
+                "Git could not save that. " + (result.StdErr.Trim() is { Length: > 0 } detail
+                    ? detail
+                    : "You can set it yourself with: git config --global user.name \"Your Name\"");
+            return;
+        }
+
+        IdentityPromptNeeded = false;
+    }
+
     private void RemoveRecent(string path)
     {
         _settings.Save(_settings.Load().WithRepositoryRemoved(path));
@@ -125,5 +169,31 @@ public sealed partial class StartupViewModel : ViewModelBase
         Recents.Clear();
         foreach (var path in _settings.Load().RecentRepositories)
             Recents.Add(new RecentRepoViewModel(path, p => OpenAsync(p), RemoveRecent));
+
+        OnPropertyChanged(nameof(HasRecents));
     }
+
+    partial void OnStateChanged(StartupState value)
+    {
+        OnPropertyChanged(nameof(IsChecking));
+        OnPropertyChanged(nameof(IsAwaitingChoice));
+        OnPropertyChanged(nameof(IsGitMissing));
+    }
+
+    partial void OnErrorMessageChanged(string? value) => OnPropertyChanged(nameof(HasError));
+
+    partial void OnIdentityNameChanged(string value)
+    {
+        OnPropertyChanged(nameof(CanSaveIdentity));
+        SaveIdentityCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIdentityEmailChanged(string value)
+    {
+        OnPropertyChanged(nameof(CanSaveIdentity));
+        SaveIdentityCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIdentitySaveErrorChanged(string? value)
+        => OnPropertyChanged(nameof(HasIdentitySaveError));
 }

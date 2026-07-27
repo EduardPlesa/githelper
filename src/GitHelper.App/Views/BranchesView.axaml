@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GitHelper.App.ViewModels"
+             x:Class="GitHelper.App.Views.BranchesView"
+             x:DataType="vm:BranchesViewModel">
+  <ScrollViewer>
+    <StackPanel Margin="12" Spacing="14">
+
+      <!-- Where you are -->
+      <StackPanel Spacing="2">
+        <TextBlock Text="{Binding CurrentBranchLabel}" FontWeight="Bold" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding SyncSummary}" Opacity="0.7" TextWrapping="Wrap" />
+      </StackPanel>
+
+      <!-- Sync -->
+      <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasRemote}">
+        <Button Content="Check for updates" Command="{Binding FetchCommand}" />
+        <Button Content="Get changes" Command="{Binding PullCommand}" />
+        <Button Content="Send changes" Command="{Binding PushCommand}" />
+      </StackPanel>
+      <TextBlock IsVisible="{Binding !HasRemote}"
+                 Text="This project has no online copy set up, so there is nowhere to send changes to or get them from."
+                 TextWrapping="Wrap"
+                 Opacity="0.7" />
+
+      <!-- Create -->
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBox Name="NewBranchNameBox"
+                 Text="{Binding NewBranchName, Mode=TwoWay}"
+                 Watermark="Name for a new branch" />
+        <Button Grid.Column="1" Content="Create branch"
+                Command="{Binding CreateBranchCommand}" Margin="8,0,0,0" />
+      </Grid>
+
+      <!-- All branches -->
+      <StackPanel Spacing="6">
+        <TextBlock Text="Branches" FontWeight="Bold" />
+        <ItemsControl Name="BranchesHost" ItemsSource="{Binding Branches}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:BranchRowViewModel">
+              <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
+                <StackPanel Spacing="2">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                    <TextBlock Text="(you are here)" Opacity="0.6" FontSize="12"
+                               IsVisible="{Binding IsCurrent}" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding UpstreamLabel}" Opacity="0.6" FontSize="12" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Switch to it"
+                        Command="{Binding SwitchCommand}" IsVisible="{Binding CanSwitch}" />
+                <Button Grid.Column="2" Content="Delete"
+                        Command="{Binding DeleteCommand}" IsVisible="{Binding CanDelete}"
+                        Margin="6,0,0,0" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

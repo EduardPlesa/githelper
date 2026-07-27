@@ -43,21 +43,26 @@ public class RepoWatcherTests : IDisposable
     public async Task Watch_CoalescesABurstOfChangesIntoASingleCallback()
     {
         var fired = 0;
-        using var watcher = new RepoWatcher(TimeSpan.FromMilliseconds(100), () => Interlocked.Increment(ref fired));
+        using var watcher = new RepoWatcher(TimeSpan.FromMilliseconds(400), () => Interlocked.Increment(ref fired));
         watcher.Watch(_dir);
 
-        // Deliberately spread across ~300ms, comfortably longer than the 100ms debounce.
+        // Deliberately spread across ~600ms, comfortably longer than the 400ms debounce.
         // A tight loop would finish inside the window and pass even against a throttling
         // implementation, proving nothing: the debounce must RESTART on every event, so a
         // steady stream of changes yields exactly one callback after the stream stops.
-        for (var i = 0; i < 12; i++)
+        //
+        // The gap is far smaller than the debounce on purpose. Task.Delay only guarantees a
+        // lower bound, and on a loaded machine a nominal 25ms delay can overshoot badly — if
+        // one overshoot exceeds the debounce, the timer fires mid-stream and the run sees two
+        // callbacks. A 375ms margin puts that outside any plausible scheduler jitter.
+        for (var i = 0; i < 24; i++)
         {
             File.WriteAllText(Path.Combine(_dir, $"f{i}.txt"), i.ToString());
             await Task.Delay(25);
         }
 
         Assert.True(await WaitUntilAsync(() => Volatile.Read(ref fired) >= 1));
-        await Task.Delay(300); // let any further callbacks arrive
+        await Task.Delay(600); // let any further callbacks arrive
 
         Assert.Equal(1, Volatile.Read(ref fired));
     }

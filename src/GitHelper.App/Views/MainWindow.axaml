@@ -1,11 +1,77 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GitHelper.App.ViewModels"
+        xmlns:views="using:GitHelper.App.Views"
         x:Class="GitHelper.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
         Title="GitHelper"
         Width="1100" Height="700"
         MinWidth="800" MinHeight="500">
-  <TextBlock Text="GitHelper"
-             HorizontalAlignment="Center"
-             VerticalAlignment="Center"
-             FontSize="24" />
+
+  <!-- One template per tab viewmodel: the centre pane then needs no visibility logic. -->
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:ChangesViewModel">
+      <views:ChangesView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:HistoryViewModel">
+      <views:HistoryView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:BranchesViewModel">
+      <views:BranchesView />
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <Panel>
+
+    <!-- The real chrome, visible from the first frame. -->
+    <Grid RowDefinitions="Auto,*,Auto">
+
+      <!-- Top bar -->
+      <Border Grid.Row="0" BorderThickness="0,0,0,1" BorderBrush="#40808080" Padding="12,8">
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+          <TextBlock Text="{Binding RepositoryName}" FontWeight="Bold" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="{Binding BranchLabel}"
+                     Opacity="0.7" Margin="10,0,0,0" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="2" Text="{Binding StatusMessage}"
+                     Opacity="0.8" Margin="16,0" VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" />
+          <Button Grid.Column="3"
+                  Content="{Binding CurrentTheme, StringFormat='Theme: {0}'}"
+                  Command="{Binding CycleThemeCommand}" />
+          <Button Grid.Column="4" Content="Close project"
+                  Command="{Binding CloseRepositoryCommand}"
+                  IsVisible="{Binding IsRepositoryOpen}"
+                  Margin="6,0,0,0" />
+        </Grid>
+      </Border>
+
+      <!-- Three panes -->
+      <Grid Grid.Row="1" ColumnDefinitions="170,*,340">
+
+        <ListBox Name="TabList"
+                 ItemsSource="{Binding Tabs}"
+                 SelectedItem="{Binding SelectedTab}"
+                 BorderThickness="0,0,1,0"
+                 BorderBrush="#40808080" />
+
+        <ContentControl Grid.Column="1" Name="TabContent" Content="{Binding CurrentTab}" />
+
+        <Border Grid.Column="2" BorderThickness="1,0,0,0" BorderBrush="#40808080">
+          <views:ExplainPanelView DataContext="{Binding Explain}" />
+        </Border>
+
+      </Grid>
+
+      <!-- Command log strip: small, fixed, never collapsed. -->
+      <views:CommandLogView Grid.Row="2" Height="140" DataContext="{Binding CommandLog}" />
+
+    </Grid>
+
+    <!-- Startup scrim over the chrome. IsVisible binds to MainViewModel; the overlay
+         inside re-points its own DataContext at Startup. -->
+    <Panel Name="StartupScrim" IsVisible="{Binding !IsRepositoryOpen}" Background="#B0000000">
+      <views:StartupOverlay DataContext="{Binding Startup}" />
+    </Panel>
+
+  </Panel>
 </Window>

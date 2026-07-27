@@ -60,8 +60,11 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     [ObservableProperty] private bool _showTechnicalDetails;
     [ObservableProperty] private bool _suppressExplanationForThisAction;
 
-    /// <summary>Raised after a run so the shell can refresh repository state.</summary>
-    public event EventHandler<ActionOutcome>? ActionCompleted;
+    /// <summary>
+    /// Invoked after a run so the shell can refresh repository state, and awaited so the
+    /// refresh completes before RunAsync returns. A plain event could not be awaited.
+    /// </summary>
+    public Func<ActionOutcome, CancellationToken, Task>? ActionCompletedAsync { get; set; }
 
     /// <summary>
     /// True when the confirmation belongs inline in the panel. Destructive actions are
@@ -143,7 +146,7 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
         if (SuppressExplanationForThisAction && DangerLevel != Danger.Destructive)
             _settings.Save(_settings.Load().WithExplanationSuppressed(_request.ActionId));
 
-        ActionCompleted?.Invoke(this, outcome);
+        if (ActionCompletedAsync is { } handler) await handler(outcome, ct);
         return true;
     }
 

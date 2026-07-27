@@ -55,8 +55,12 @@ public sealed partial class StartupViewModel : ViewModelBase
 
     public IAsyncRelayCommand BrowseCommand { get; }
 
-    /// <summary>Raised with the repository root once a folder validates.</summary>
-    public event EventHandler<string>? RepositoryOpened;
+    /// <summary>
+    /// Invoked with the repository root once a folder validates, and awaited — the overlay
+    /// must not be considered finished until the shell has actually loaded the repository.
+    /// A plain event could not be awaited, which previously forced the subscriber to block.
+    /// </summary>
+    public Func<string, CancellationToken, Task>? RepositoryOpenedAsync { get; set; }
 
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -99,7 +103,7 @@ public sealed partial class StartupViewModel : ViewModelBase
         _settings.Save(_settings.Load().WithRepositoryOpened(root));
         LoadRecents();
 
-        RepositoryOpened?.Invoke(this, root);
+        if (RepositoryOpenedAsync is { } handler) await handler(root, ct);
     }
 
     private async Task BrowseAsync()

@@ -103,7 +103,7 @@ public class StartupViewModelTests
         using var repo = await TestRepo.CreateAsync();
         var f = NewRealFixture();
         string? opened = null;
-        f.Startup.RepositoryOpened += (_, path) => opened = path;
+        f.Startup.RepositoryOpenedAsync = (path, _) => { opened = path; return Task.CompletedTask; };
 
         await f.Startup.OpenAsync(repo.Path);
 
@@ -134,7 +134,7 @@ public class StartupViewModelTests
         Directory.CreateDirectory(dir);
         var f = NewRealFixture();
         var raised = false;
-        f.Startup.RepositoryOpened += (_, _) => raised = true;
+        f.Startup.RepositoryOpenedAsync = (_, _) => { raised = true; return Task.CompletedTask; };
 
         try
         {
@@ -157,7 +157,7 @@ public class StartupViewModelTests
         var f = NewRealFixture();
         f.Picker.NextResult = repo.Path;
         string? opened = null;
-        f.Startup.RepositoryOpened += (_, path) => opened = path;
+        f.Startup.RepositoryOpenedAsync = (path, _) => { opened = path; return Task.CompletedTask; };
 
         await f.Startup.BrowseCommand.ExecuteAsync(null);
 
@@ -171,7 +171,7 @@ public class StartupViewModelTests
         var f = NewRealFixture();
         f.Picker.NextResult = null;
         var raised = false;
-        f.Startup.RepositoryOpened += (_, _) => raised = true;
+        f.Startup.RepositoryOpenedAsync = (_, _) => { raised = true; return Task.CompletedTask; };
 
         await f.Startup.BrowseCommand.ExecuteAsync(null);
 

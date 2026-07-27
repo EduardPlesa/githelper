@@ -58,8 +58,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         CycleThemeCommand = new RelayCommand(CycleTheme);
         CloseRepositoryCommand = new AsyncRelayCommand(CloseRepositoryAsync);
 
-        Startup.RepositoryOpened += OnRepositoryOpened;
-        Explain.ActionCompleted += OnActionCompleted;
+        Startup.RepositoryOpenedAsync = (repoRoot, ct) => OpenRepositoryAsync(repoRoot, ct);
+        Explain.ActionCompletedAsync = OnActionCompletedAsync;
 
         // Hop to the UI thread: the watcher fires on a thread-pool thread, and the refresh
         // rebuilds collections that are bound to controls.
@@ -116,30 +116,19 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        Startup.RepositoryOpened -= OnRepositoryOpened;
-        Explain.ActionCompleted -= OnActionCompleted;
+        Startup.RepositoryOpenedAsync = null;
+        Explain.ActionCompletedAsync = null;
         _watcher.Dispose();
         CommandLog.Dispose();
     }
 
-    private void OnRepositoryOpened(object? sender, string repoRoot)
-        // StartupViewModel.RepositoryOpened is a plain synchronous event: OpenAsync raises
-        // it as its very last statement and does not await subscribers, so a bare fire-and-
-        // forget task here would leave IsRepositoryOpen/RepositoryName/the tabs unset for an
-        // arbitrary stretch after OpenAsync's own Task has already completed. Task.Run moves
-        // the work off whatever thread raised the event (including the UI thread) and clears
-        // the captured SynchronizationContext for it, so blocking on it here cannot deadlock
-        // even though the inner awaits (in RepoStateReader, out of this task's control) do
-        // not use ConfigureAwait(false).
-        => Task.Run(() => OpenRepositoryAsync(repoRoot)).GetAwaiter().GetResult();
-
-    private async Task OpenRepositoryAsync(string repoRoot)
+    private async Task OpenRepositoryAsync(string repoRoot, CancellationToken ct = default)
     {
         _repoPath = repoRoot;
         Explain.Clear();
         StatusMessage = null;
 
-        await RefreshAsync();
+        await RefreshAsync(ct);
 
         IsRepositoryOpen = true;
 
@@ -148,18 +137,14 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         _watcher.Watch(repoRoot);
     }
 
-    private void OnActionCompleted(object? sender, ActionOutcome outcome)
+    private async Task OnActionCompletedAsync(ActionOutcome outcome, CancellationToken ct)
     {
         if (outcome.Narration is { Length: > 0 }) StatusMessage = outcome.Narration;
 
         Changes.OnActionCompleted(outcome);
         Branches.OnActionCompleted(outcome);
 
-        // Same reasoning as OnRepositoryOpened: ExplainPanelViewModel.RunAsync raises
-        // ActionCompleted synchronously and does not await subscribers, so the refresh is
-        // pushed onto a context-free background task and waited on here rather than left to
-        // race the caller of RunAsync.
-        Task.Run(() => RefreshAsync()).GetAwaiter().GetResult();
+        await RefreshAsync(ct);
     }
 
     private Task CloseRepositoryAsync()

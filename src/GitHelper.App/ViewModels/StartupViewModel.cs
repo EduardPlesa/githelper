@@ -55,6 +55,18 @@ public sealed partial class StartupViewModel : ViewModelBase
 
     public IAsyncRelayCommand BrowseCommand { get; }
 
+    // Compiled bindings cannot compare an enum to a constant, so the overlay's conditions
+    // are exposed as booleans instead of pushed into XAML converters.
+    public bool IsChecking => State == StartupState.Checking;
+
+    public bool IsAwaitingChoice => State == StartupState.AwaitingChoice;
+
+    public bool IsGitMissing => State == StartupState.GitMissing;
+
+    public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
+
+    public bool HasRecents => Recents.Count > 0;
+
     /// <summary>
     /// Invoked with the repository root once a folder validates, and awaited — the overlay
     /// must not be considered finished until the shell has actually loaded the repository.
@@ -125,5 +137,16 @@ public sealed partial class StartupViewModel : ViewModelBase
         Recents.Clear();
         foreach (var path in _settings.Load().RecentRepositories)
             Recents.Add(new RecentRepoViewModel(path, p => OpenAsync(p), RemoveRecent));
+
+        OnPropertyChanged(nameof(HasRecents));
     }
+
+    partial void OnStateChanged(StartupState value)
+    {
+        OnPropertyChanged(nameof(IsChecking));
+        OnPropertyChanged(nameof(IsAwaitingChoice));
+        OnPropertyChanged(nameof(IsGitMissing));
+    }
+
+    partial void OnErrorMessageChanged(string? value) => OnPropertyChanged(nameof(HasError));
 }

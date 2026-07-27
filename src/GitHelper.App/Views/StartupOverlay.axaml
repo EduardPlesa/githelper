@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GitHelper.App.ViewModels"
+             x:Class="GitHelper.App.Views.StartupOverlay"
+             x:DataType="vm:StartupViewModel">
+  <Border Background="{DynamicResource SystemRegionBrush}"
+          CornerRadius="8"
+          Padding="28"
+          MaxWidth="560"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center">
+    <StackPanel Spacing="16">
+
+      <TextBlock Text="GitHelper" FontSize="22" FontWeight="Bold" />
+
+      <!-- Running the environment check. -->
+      <TextBlock IsVisible="{Binding IsChecking}" Text="Checking your setup…" Opacity="0.7" />
+
+      <!-- Git is not installed: nothing else can work, so no picker is offered. -->
+      <StackPanel Spacing="10" IsVisible="{Binding IsGitMissing}">
+        <TextBlock Text="Git is not installed" FontWeight="Bold" />
+        <TextBlock Text="{Binding BlockingMessage}" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding BlockingFixHint}" TextWrapping="Wrap" Opacity="0.8" />
+      </StackPanel>
+
+      <!-- Normal case: browse, or pick something recent. -->
+      <StackPanel Spacing="14" IsVisible="{Binding IsAwaitingChoice}">
+
+        <TextBlock Text="Open a folder to get started." TextWrapping="Wrap" />
+
+        <Button Content="Open folder…"
+                Command="{Binding BrowseCommand}"
+                HorizontalAlignment="Left" />
+
+        <TextBlock IsVisible="{Binding HasError}"
+                   Text="{Binding ErrorMessage}"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Spacing="6" IsVisible="{Binding HasRecents}">
+          <TextBlock Text="Recent projects" FontWeight="Bold" />
+          <ItemsControl Name="RecentsHost" ItemsSource="{Binding Recents}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:RecentRepoViewModel">
+                <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                  <Button Command="{Binding OpenCommand}"
+                          HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Left">
+                    <StackPanel Spacing="1">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding FullPath}" FontSize="11" Opacity="0.6"
+                                 TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </Button>
+                  <Button Grid.Column="1" Content="✕"
+                          Command="{Binding RemoveCommand}"
+                          ToolTip.Tip="Remove from this list"
+                          Margin="6,0,0,0" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <!-- A missing identity does not block anything, but the first commit would fail
+             confusingly without this warning. -->
+        <TextBlock IsVisible="{Binding IdentityPromptNeeded}"
+                   Text="Your name and email are not set in git yet. You can browse and stage files, but your first commit will need them."
+                   TextWrapping="Wrap"
+                   Opacity="0.8" />
+
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

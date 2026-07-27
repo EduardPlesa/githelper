@@ -283,20 +283,4 @@ public class BranchesViewModelTests
         Assert.DoesNotContain(after.Branches, b => b.Name == "feature");
     }
 
-    [Fact]
-    public async Task PushCommand_IsBlockedWithATranslatedMessageInDetachedHead()
-    {
-        using var repo = await TestRepo.CreateAsync();
-        await repo.GitAsync("remote", "add", "origin", "https://example.invalid/nope.git");
-        var head = (await repo.GitAsync("rev-parse", "HEAD")).StdOut.Trim();
-        await repo.GitAsync("checkout", "-q", head);
-        var f = NewFixture();
-        f.Branches.Update(await f.Reader.ReadAsync(repo.Path));
-
-        await f.Branches.PushCommand.ExecuteAsync(null);
-
-        // The engine's RequiresNotDetached blocks it; no crash, and a readable reason.
-        Assert.False(f.Panel.CanRun);
-        Assert.Contains(f.Panel.Blockers, b => b.Contains("detached", StringComparison.OrdinalIgnoreCase));
-    }
 }

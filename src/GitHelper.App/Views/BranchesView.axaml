@@ -12,11 +12,12 @@
         <TextBlock Text="{Binding SyncSummary}" Opacity="0.7" TextWrapping="Wrap" />
       </StackPanel>
 
-      <!-- Sync -->
+      <!-- Sync: bringing work in only. Sending it out lives on the Changes tab, next to the
+           Commit button, because that is where a commit is made and so where the question
+           "this is saved, but where?" actually arises. -->
       <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasRemote}">
         <Button Content="Check for updates" Command="{Binding FetchCommand}" />
         <Button Content="Get changes" Command="{Binding PullCommand}" />
-        <Button Content="Send changes" Command="{Binding PushCommand}" />
       </StackPanel>
       <TextBlock IsVisible="{Binding !HasRemote}"
                  Text="This project has no online copy set up, so there is nowhere to send changes to or get them from."

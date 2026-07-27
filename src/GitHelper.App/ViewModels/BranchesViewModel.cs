@@ -22,7 +22,6 @@ public sealed partial class BranchesViewModel : ViewModelBase
             () => InvokeAsync("create-branch", branchName: NewBranchName));
         FetchCommand = new AsyncRelayCommand(() => InvokeAsync("fetch"));
         PullCommand = new AsyncRelayCommand(() => InvokeAsync("pull"));
-        PushCommand = new AsyncRelayCommand(() => InvokeAsync("push"));
     }
 
     public ObservableCollection<BranchRowViewModel> Branches { get; } = new();
@@ -37,9 +36,11 @@ public sealed partial class BranchesViewModel : ViewModelBase
 
     public IAsyncRelayCommand FetchCommand { get; }
 
+    /// <summary>
+    /// Fetch and pull bring work in, which is a branch-level concern. Sending work out lives
+    /// on the Changes tab instead, beside the Commit button — see ChangesViewModel.PushCommand.
+    /// </summary>
     public IAsyncRelayCommand PullCommand { get; }
-
-    public IAsyncRelayCommand PushCommand { get; }
 
     public void Update(RepoState state)
     {

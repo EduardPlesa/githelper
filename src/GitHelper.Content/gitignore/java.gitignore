@@ -6,9 +6,14 @@ target/
 build/
 out/
 
-# Gradle and Maven working directories.
-.gradle/
+# Compiled jars are build output too, but the Gradle wrapper jar is the
+# exception: it is committed so the wrapper can bootstrap a build on a
+# machine that doesn't have Gradle installed yet.
+*.jar
 !gradle/wrapper/gradle-wrapper.jar
+
+# Gradle's local working directory.
+.gradle/
 
 # Secrets. Never commit these.
 .env

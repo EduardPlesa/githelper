@@ -61,12 +61,21 @@
           </ItemsControl>
         </StackPanel>
 
-        <!-- A missing identity does not block anything, but the first commit would fail
-             confusingly without this warning. -->
-        <TextBlock IsVisible="{Binding IdentityPromptNeeded}"
-                   Text="Your name and email are not set in git yet. You can browse and stage files, but your first commit will need them."
-                   TextWrapping="Wrap"
-                   Opacity="0.8" />
+        <!-- A name and an email only. Never a password or token — the identity is the
+             label stamped on commits, not a login. -->
+        <StackPanel Spacing="8" IsVisible="{Binding IdentityPromptNeeded}">
+          <TextBlock Text="Set your name for commits" FontWeight="Bold" />
+          <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                     Text="Every commit records who made it. Setting this now avoids a confusing failure on your first commit. This is just a label — it is not an account, and no password is involved." />
+          <TextBox Name="IdentityNameBox" Text="{Binding IdentityName, Mode=TwoWay}" Watermark="Your name" />
+          <TextBox Name="IdentityEmailBox" Text="{Binding IdentityEmail, Mode=TwoWay}" Watermark="you@example.com" />
+          <Button Content="Save to git"
+                  Command="{Binding SaveIdentityCommand}"
+                  HorizontalAlignment="Left" />
+          <TextBlock IsVisible="{Binding HasIdentitySaveError}"
+                     Text="{Binding IdentitySaveError}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
 
       </StackPanel>
     </StackPanel>

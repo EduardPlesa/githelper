@@ -118,6 +118,26 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task ConcurrentRefreshesDoNotCorruptTheBoundCollections()
+    {
+        // An action completing and the watcher firing can both request a refresh at once.
+        // Before these were serialized, the two appends into the command log's
+        // ObservableCollection raced and threw IndexOutOfRangeException.
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("a.txt", "x\n");
+        var f = NewFixture();
+        using var main = f.Main;
+        await main.Startup.OpenAsync(repo.Path);
+
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => main.RefreshAsync()));
+
+        // Every recorded command landed exactly once, and the tabs reflect one coherent
+        // snapshot rather than an interleaving of several.
+        Assert.Equal(main.CommandLog.Entries.Count, main.CommandLog.Entries.Distinct().Count());
+        Assert.Single(main.Changes.Unstaged);
+    }
+
+    [Fact]
     public async Task CommittingClearsTheCommitBoxViaTheChangesViewModel()
     {
         using var repo = await TestRepo.CreateAsync();

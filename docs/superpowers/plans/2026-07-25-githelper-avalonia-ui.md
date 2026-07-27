@@ -1695,7 +1695,7 @@ git commit -m "feat: render engine content blocks as Avalonia controls"
   - `interface IConfirmationDialog { Task<bool> ConfirmDestructiveAsync(string title, string consequence, CancellationToken ct = default); }`
   - `abstract class ViewModelBase : ObservableObject`
   - `enum ExplainPanelState { Empty, Explaining, Error }`
-  - `sealed partial class ExplainPanelViewModel(ActionService actions, IConfirmationDialog confirmations, ISettingsStore settings) : ViewModelBase` with observable properties `PanelState`, `Title`, `CommandLine`, `DangerLevel`, `WhatBlocks`, `RisksBlocks`, `UndoBlocks`, `Blockers`, `CanRun`, `RequiresConfirmation`, `Narration`, `Error`, `ShowTechnicalDetails`, `SuppressExplanationForThisAction`; plus `bool ShouldRunImmediately`, `event EventHandler<ActionOutcome>? ActionCompleted`, `Task ShowAsync(...)`, `Task<bool> RunAsync(...)`, `Task ShowAndRunIfUngatedAsync(...)`, `void Clear()`
+  - `sealed partial class ExplainPanelViewModel(ActionService actions, IConfirmationDialog confirmations, ISettingsStore settings) : ViewModelBase` with observable properties `PanelState`, `Title`, `CommandLine`, `DangerLevel`, `WhatBlocks`, `RisksBlocks`, `UndoBlocks`, `Blockers`, `CanRun`, `RequiresConfirmation`, `Narration`, `Error`, `ShowTechnicalDetails`, `SuppressExplanationForThisAction`; plus `bool ShouldRunImmediately`, `Func<ActionOutcome, CancellationToken, Task>? ActionCompletedAsync`, `Task ShowAsync(...)`, `Task<bool> RunAsync(...)`, `Task ShowAndRunIfUngatedAsync(...)`, `void Clear()`
   - `sealed class StubConfirmationDialog : IConfirmationDialog` with `bool NextAnswer { get; set; }`, `int CallCount { get; }`, `string? LastConsequence { get; }`
 
 **Why `IConfirmationDialog` exists.** The spec's most safety-relevant UI rule is "inline confirm for Caution, a modal for the one Destructive action." If the viewmodel simply exposed a flag and let the view decide, that rule would only be verifiable by clicking. With this seam, the viewmodel owns the rule and a test can assert that `discard-file` consults the dialog while `commit` never does.
@@ -2050,7 +2050,7 @@ public class ExplainPanelViewModelTests
         await repo.GitAsync("add", "-A");
         var (panel, _, _) = NewPanel();
         ActionOutcome? observed = null;
-        panel.ActionCompleted += (_, outcome) => observed = outcome;
+        panel.ActionCompletedAsync = (outcome, _) => { observed = outcome; return Task.CompletedTask; };
 
         await panel.ShowAsync(repo.Path, new ActionRequest("commit", Message: "add a file"));
         await panel.RunAsync();
@@ -4051,7 +4051,7 @@ git commit -m "feat: add branches viewmodel with detached-HEAD and sync summarie
 - Produces:
   - `sealed class RecentRepoViewModel(string fullPath, Func<string, Task> open, Action<string> remove) : ViewModelBase` with `string FullPath`, `string Name`, `IAsyncRelayCommand OpenCommand`, `IRelayCommand RemoveCommand`
   - `enum StartupState { Checking, AwaitingChoice, GitMissing }`
-  - `sealed partial class StartupViewModel(ISettingsStore settings, IFolderPicker picker, RepoStateReader reader, GitEnvironment environment) : ViewModelBase` with `ObservableCollection<RecentRepoViewModel> Recents`, observable `State`, `BlockingMessage`, `BlockingFixHint`, `ErrorMessage`, `IdentityPromptNeeded`; `IAsyncRelayCommand BrowseCommand`; `event EventHandler<string>? RepositoryOpened`; `Task InitializeAsync(CancellationToken ct = default)`; `Task OpenAsync(string path, CancellationToken ct = default)`
+  - `sealed partial class StartupViewModel(ISettingsStore settings, IFolderPicker picker, RepoStateReader reader, GitEnvironment environment) : ViewModelBase` with `ObservableCollection<RecentRepoViewModel> Recents`, observable `State`, `BlockingMessage`, `BlockingFixHint`, `ErrorMessage`, `IdentityPromptNeeded`; `IAsyncRelayCommand BrowseCommand`; `Func<string, CancellationToken, Task>? RepositoryOpenedAsync`; `Task InitializeAsync(CancellationToken ct = default)`; `Task OpenAsync(string path, CancellationToken ct = default)`
   - `sealed class StubGitRunner : IGitRunner` with `Func<IReadOnlyList<string>, GitCommandResult>? Respond { get; set; }` and `bool ThrowGitMissing { get; set; }`
 
 **The startup sequence, per the spec.** The window chrome renders immediately with this overlay on top. `InitializeAsync` runs `GitEnvironment.CheckAsync` first:
@@ -4174,7 +4174,7 @@ public class StartupViewModelTests
         using var repo = await TestRepo.CreateAsync();
         var f = NewRealFixture();
         string? opened = null;
-        f.Startup.RepositoryOpened += (_, path) => opened = path;
+        f.Startup.RepositoryOpenedAsync = (path, _) => { opened = path; return Task.CompletedTask; };
 
         await f.Startup.OpenAsync(repo.Path);
 
@@ -4205,7 +4205,7 @@ public class StartupViewModelTests
         Directory.CreateDirectory(dir);
         var f = NewRealFixture();
         var raised = false;
-        f.Startup.RepositoryOpened += (_, _) => raised = true;
+        f.Startup.RepositoryOpenedAsync = (_, _) => { raised = true; return Task.CompletedTask; };
 
         try
         {
@@ -4228,7 +4228,7 @@ public class StartupViewModelTests
         var f = NewRealFixture();
         f.Picker.NextResult = repo.Path;
         string? opened = null;
-        f.Startup.RepositoryOpened += (_, path) => opened = path;
+        f.Startup.RepositoryOpenedAsync = (path, _) => { opened = path; return Task.CompletedTask; };
 
         await f.Startup.BrowseCommand.ExecuteAsync(null);
 
@@ -4242,7 +4242,7 @@ public class StartupViewModelTests
         var f = NewRealFixture();
         f.Picker.NextResult = null;
         var raised = false;
-        f.Startup.RepositoryOpened += (_, _) => raised = true;
+        f.Startup.RepositoryOpenedAsync = (_, _) => { raised = true; return Task.CompletedTask; };
 
         await f.Startup.BrowseCommand.ExecuteAsync(null);
 
@@ -4420,7 +4420,12 @@ public sealed partial class StartupViewModel : ViewModelBase
     public IAsyncRelayCommand BrowseCommand { get; }
 
     /// <summary>Raised with the repository root once a folder validates.</summary>
-    public event EventHandler<string>? RepositoryOpened;
+    /// <summary>
+    /// Invoked with the repository root once a folder validates, and awaited — the overlay
+    /// must not be considered finished until the shell has actually loaded the repository.
+    /// A plain event could not be awaited, which would force the subscriber to block.
+    /// </summary>
+    public Func<string, CancellationToken, Task>? RepositoryOpenedAsync { get; set; }
 
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -4463,7 +4468,7 @@ public sealed partial class StartupViewModel : ViewModelBase
         _settings.Save(_settings.Load().WithRepositoryOpened(root));
         LoadRecents();
 
-        RepositoryOpened?.Invoke(this, root);
+        if (RepositoryOpenedAsync is { } handler) await handler(root, ct);
     }
 
     private async Task BrowseAsync()
@@ -5042,6 +5047,26 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public async Task ConcurrentRefreshesDoNotCorruptTheBoundCollections()
+    {
+        // An action completing and the watcher firing can both request a refresh at once.
+        // Before these were serialized, the two appends into the command log's
+        // ObservableCollection raced and threw IndexOutOfRangeException.
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("a.txt", "x\n");
+        var f = NewFixture();
+        using var main = f.Main;
+        await main.Startup.OpenAsync(repo.Path);
+
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => main.RefreshAsync()));
+
+        // Every recorded command landed exactly once, and the tabs reflect one coherent
+        // snapshot rather than an interleaving of several.
+        Assert.Equal(main.CommandLog.Entries.Count, main.CommandLog.Entries.Distinct().Count());
+        Assert.Single(main.Changes.Unstaged);
+    }
+
+    [Fact]
     public async Task CommittingClearsTheCommitBoxViaTheChangesViewModel()
     {
         using var repo = await TestRepo.CreateAsync();
@@ -5199,6 +5224,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     private readonly ThemeController _themeController;
     private readonly ISettingsStore _settings;
     private readonly IUiDispatcher _dispatcher;
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     private string? _repoPath;
 
@@ -5231,8 +5257,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         CycleThemeCommand = new RelayCommand(CycleTheme);
         CloseRepositoryCommand = new AsyncRelayCommand(CloseRepositoryAsync);
 
-        Startup.RepositoryOpened += OnRepositoryOpened;
-        Explain.ActionCompleted += OnActionCompleted;
+        Startup.RepositoryOpenedAsync = (repoRoot, ct) => OpenRepositoryAsync(repoRoot, ct);
+        Explain.ActionCompletedAsync = OnActionCompletedAsync;
     }
 
     public StartupViewModel Startup { get; }
@@ -5271,24 +5297,37 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     {
         if (_repoPath is null) return;
 
-        var state = await _reader.ReadAsync(_repoPath, ct);
+        // An action completing and the file watcher waking can both ask for a refresh at
+        // the same moment — running an action writes to .git, which is exactly what the
+        // watcher is watching. Overlapping refreshes double the git work and can interleave
+        // two different snapshots into the collections the views are bound to.
+        await _refreshGate.WaitAsync(ct);
+        try
+        {
+            var state = await _reader.ReadAsync(_repoPath, ct);
 
-        RepositoryName = new DirectoryInfo(state.RepoRoot).Name;
-        BranchLabel = state.IsDetached
-            ? "not on a branch (detached HEAD)"
-            : state.Branch ?? "no branch";
+            RepositoryName = new DirectoryInfo(state.RepoRoot).Name;
+            BranchLabel = state.IsDetached
+                ? "not on a branch (detached HEAD)"
+                : state.Branch ?? "no branch";
 
-        Changes.Update(state);
-        History.Update(state);
-        Branches.Update(state);
+            Changes.Update(state);
+            History.Update(state);
+            Branches.Update(state);
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
     }
 
     public void Dispose()
     {
-        Startup.RepositoryOpened -= OnRepositoryOpened;
-        Explain.ActionCompleted -= OnActionCompleted;
+        Startup.RepositoryOpenedAsync = null;
+        Explain.ActionCompletedAsync = null;
         _watcher.Dispose();
         CommandLog.Dispose();
+        _refreshGate.Dispose();
     }
 
     private void OnRepositoryOpened(object? sender, string repoRoot)
@@ -5426,7 +5465,7 @@ Then in `MainViewModel`'s constructor, after assigning `_watcher`, add:
 - [ ] **Step 5: Run the tests**
 
 Run: `dotnet test tests/GitHelper.App.Tests/GitHelper.App.Tests.csproj --filter "MainViewModelTests|RepoWatcherTests"`
-Expected: PASS, 19 tests (13 main-viewmodel facts, 6 watcher facts — the watcher tests still pass because the constructor callback is now the initial value of `OnChanged`).
+Expected: PASS, 20 tests (14 main-viewmodel facts, 6 watcher facts — the watcher tests still pass because the constructor callback is now the initial value of `OnChanged`).
 
 - [ ] **Step 6: Run the whole suite**
 

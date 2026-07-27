@@ -26,6 +26,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     private readonly ThemeController _themeController;
     private readonly ISettingsStore _settings;
     private readonly IUiDispatcher _dispatcher;
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     private string? _repoPath;
 
@@ -102,16 +103,28 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     {
         if (_repoPath is null) return;
 
-        var state = await _reader.ReadAsync(_repoPath, ct);
+        // An action completing and the file watcher waking can both ask for a refresh at
+        // the same moment — running an action writes to .git, which is exactly what the
+        // watcher is watching. Overlapping refreshes double the git work and can interleave
+        // two different snapshots into the collections the views are bound to.
+        await _refreshGate.WaitAsync(ct);
+        try
+        {
+            var state = await _reader.ReadAsync(_repoPath, ct);
 
-        RepositoryName = new DirectoryInfo(state.RepoRoot).Name;
-        BranchLabel = state.IsDetached
-            ? "not on a branch (detached HEAD)"
-            : state.Branch ?? "no branch";
+            RepositoryName = new DirectoryInfo(state.RepoRoot).Name;
+            BranchLabel = state.IsDetached
+                ? "not on a branch (detached HEAD)"
+                : state.Branch ?? "no branch";
 
-        Changes.Update(state);
-        History.Update(state);
-        Branches.Update(state);
+            Changes.Update(state);
+            History.Update(state);
+            Branches.Update(state);
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
     }
 
     public void Dispose()
@@ -120,6 +133,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Explain.ActionCompletedAsync = null;
         _watcher.Dispose();
         CommandLog.Dispose();
+        _refreshGate.Dispose();
     }
 
     private async Task OpenRepositoryAsync(string repoRoot, CancellationToken ct = default)

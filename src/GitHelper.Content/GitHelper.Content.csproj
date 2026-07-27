@@ -10,6 +10,7 @@
   <ItemGroup>
     <EmbeddedResource Include="actions/**/*.md" />
     <EmbeddedResource Include="terms/**/*.md" />
+    <EmbeddedResource Include="gitignore/**/*.gitignore" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,23 @@
+# Files git should leave alone, for a Java project.
+
+# Compiled classes and build output.
+*.class
+target/
+build/
+out/
+
+# Gradle and Maven working directories.
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Secrets. Never commit these.
+.env
+.env.*
+*.jks
+
+# Editor settings and operating system junk.
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db

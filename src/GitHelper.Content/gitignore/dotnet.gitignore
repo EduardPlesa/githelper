@@ -1,0 +1,25 @@
+# Files git should leave alone, for a .NET project.
+
+# Build output. Rebuilt from source every time, so committing it only causes conflicts.
+bin/
+obj/
+
+# Visual Studio and Rider settings that belong to you, not the project.
+.vs/
+.idea/
+*.user
+*.suo
+
+# Secrets. Never commit these.
+.env
+.env.*
+appsettings.Development.json
+*.pfx
+
+# Test and coverage output.
+TestResults/
+coverage/
+
+# Operating system junk.
+Thumbs.db
+.DS_Store

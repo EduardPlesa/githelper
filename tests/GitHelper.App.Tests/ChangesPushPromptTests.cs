@@ -138,4 +138,23 @@ public class ChangesPushPromptTests
         Assert.Equal("Send changes to the server", f.Panel.Title);
         Assert.True(f.Panel.RequiresInlineConfirmation);
     }
+
+    [Fact]
+    public async Task PushCommandIsBlockedWithAReadableReasonInDetachedHead()
+    {
+        // The prompt already hides itself here, so this is defence in depth: if the command is
+        // reached anyway, the engine's RequiresNotDetached must produce an explanation rather
+        // than a crash. Moved here with the button, from the Branches tab.
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("remote", "add", "origin", "https://example.invalid/nope.git");
+        var head = (await repo.GitAsync("rev-parse", "HEAD")).StdOut.Trim();
+        await repo.GitAsync("checkout", "-q", head);
+        var f = NewFixture();
+        f.Changes.Update(await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path));
+
+        await f.Changes.PushCommand.ExecuteAsync(null);
+
+        Assert.False(f.Panel.CanRun);
+        Assert.Contains(f.Panel.Blockers, b => b.Contains("detached", StringComparison.OrdinalIgnoreCase));
+    }
 }

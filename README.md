@@ -146,7 +146,7 @@ a great deal when the thing you're doing is teaching.
 
 ## Testing
 
-**330 tests**, all headless.
+**334 tests**, all headless.
 
 Viewmodel and engine tests drive **real git** against throwaway repositories in the temp
 directory — not mocks — so the parsers are tested against the git that's actually installed. View

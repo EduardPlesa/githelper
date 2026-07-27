@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GitHelper.App.ViewModels"
+             x:Class="GitHelper.App.Views.ChangesView"
+             x:DataType="vm:ChangesViewModel">
+  <Grid RowDefinitions="*,Auto">
+
+    <ScrollViewer Grid.Row="0">
+      <StackPanel Margin="12" Spacing="14">
+
+        <TextBlock IsVisible="{Binding !HasAnyChanges}"
+                   Text="Nothing has changed since your last commit."
+                   TextWrapping="Wrap"
+                   Opacity="0.7" />
+
+        <!-- Staged -->
+        <StackPanel Spacing="6" IsVisible="{Binding HasStagedChanges}">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Chosen for your next commit" FontWeight="Bold" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="Unstage all" Command="{Binding UnstageAllCommand}" />
+          </Grid>
+          <ItemsControl Name="StagedHost" ItemsSource="{Binding Staged}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:FileChangeRowViewModel">
+                <Grid ColumnDefinitions="*,Auto" Margin="0,3">
+                  <StackPanel>
+                    <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding StatusLabel}" Opacity="0.6" FontSize="12" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Content="Unstage" Command="{Binding UnstageCommand}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <!-- Not staged -->
+        <StackPanel Spacing="6">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Changed, but not chosen yet" FontWeight="Bold" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="Stage all" Command="{Binding StageAllCommand}" />
+          </Grid>
+          <ItemsControl Name="UnstagedHost" ItemsSource="{Binding Unstaged}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:FileChangeRowViewModel">
+                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
+                  <StackPanel>
+                    <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding StatusLabel}" Opacity="0.6" FontSize="12" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Content="Stage" Command="{Binding StageCommand}" />
+                  <Button Grid.Column="2" Content="Discard" Command="{Binding DiscardCommand}"
+                          Margin="6,0,0,0" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Commit box, pinned below the lists -->
+    <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="#40808080" Padding="12">
+      <StackPanel Spacing="8">
+        <TextBox Name="CommitMessageBox"
+                 Text="{Binding CommitMessage, Mode=TwoWay}"
+                 Watermark="Describe what you changed, in a few words"
+                 AcceptsReturn="False" />
+        <Button Content="Commit"
+                Command="{Binding CommitCommand}"
+                IsEnabled="{Binding HasStagedChanges}"
+                HorizontalAlignment="Stretch" />
+      </StackPanel>
+    </Border>
+
+  </Grid>
+</UserControl>

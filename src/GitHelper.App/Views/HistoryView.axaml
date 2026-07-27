@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GitHelper.App.ViewModels"
+             x:Class="GitHelper.App.Views.HistoryView"
+             x:DataType="vm:HistoryViewModel">
+  <ScrollViewer>
+    <StackPanel Margin="12" Spacing="10">
+
+      <TextBlock IsVisible="{Binding !HasCommits}"
+                 Text="No saved versions yet. Your first commit will appear here."
+                 TextWrapping="Wrap"
+                 Opacity="0.7" />
+
+      <ItemsControl Name="CommitsHost" ItemsSource="{Binding Commits}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:CommitRowViewModel">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+              <StackPanel Spacing="2">
+                <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8" Opacity="0.6">
+                  <TextBlock Text="{Binding ShortHash}"
+                             FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                             FontSize="12" />
+                  <TextBlock Text="{Binding Author}" FontSize="12" />
+                  <TextBlock Text="{Binding RelativeDate}" FontSize="12" />
+                </StackPanel>
+              </StackPanel>
+              <Button Grid.Column="1"
+                      Content="Undo this commit"
+                      Command="{Binding UndoCommand}"
+                      IsVisible="{Binding CanUndo}"
+                      VerticalAlignment="Center" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

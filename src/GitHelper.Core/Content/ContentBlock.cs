@@ -18,6 +18,12 @@ public sealed record TextSpan(string Text) : InlineSpan;
 
 public sealed record CodeSpan(string Text) : InlineSpan;
 
+/// <summary>
+/// Emphasis, written as **bold** in content files. Reserved for the sentences a beginner
+/// must not skim past — chiefly the consequence line on the one destructive action.
+/// </summary>
+public sealed record StrongSpan(string Text) : InlineSpan;
+
 /// <summary>A glossary reference. The UI underlines it and shows the definition on hover.</summary>
 public sealed record TermSpan(string TermId, string Display) : InlineSpan;
 

@@ -113,6 +113,55 @@ public class ContentParserTests
     }
 
     [Fact]
+    public void Parse_ReadsStrongEmphasisRatherThanLeavingTheAsterisks()
+    {
+        var text = """
+            ---
+            id: x
+            title: X
+            danger: destructive
+            ---
+            ## what
+            **This deletes your edits.** Nothing can bring them back.
+
+            ## risks
+            None.
+
+            ## undo
+            None.
+            """;
+
+        var doc = ContentParser.Parse(text, "x.md");
+        var spans = Assert.IsType<ParagraphBlock>(doc.What[0]).Spans;
+
+        Assert.Contains(spans, s => s is StrongSpan { Text: "This deletes your edits." });
+        // The markers themselves must not survive into any rendered text.
+        Assert.DoesNotContain(spans, s => s is TextSpan t && t.Text.Contains('*'));
+    }
+
+    [Fact]
+    public void ShippedContent_NeverLeavesLiteralAsterisksInProse()
+    {
+        // The parser once had no bold rule while two content files used **, so the markers
+        // rendered verbatim in the app -- including on the destructive-discard warning.
+        var library = ContentLibrary.Load();
+
+        var actionSpans = library.Actions.Values
+            .SelectMany(e => e.What.Concat(e.Risks).Concat(e.Undo));
+        var termSpans = library.Terms.Values.SelectMany(t => t.Definition);
+
+        var offenders = actionSpans.Concat(termSpans)
+            .OfType<ParagraphBlock>()
+            .SelectMany(p => p.Spans)
+            .OfType<TextSpan>()
+            .Where(s => s.Text.Contains('*'))
+            .Select(s => s.Text)
+            .ToList();
+
+        Assert.Empty(offenders);
+    }
+
+    [Fact]
     public void Parse_TreatsUndoAsOptionalOnlyInFrontmatter()
     {
         var text = """

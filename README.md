@@ -177,15 +177,22 @@ drives the real `git` binary, and tells you plainly if it's missing.
 
 ## Deliberately not in v1
 
-Recorded so they read as decisions rather than oversights:
+Recorded so they read as decisions rather than oversights. The reasoning, the cost of each, and
+the order they should close in is in **[the roadmap](docs/roadmap.md)** — including two items that
+are *declined* rather than deferred:
 
 - **Merge, rebase, stash, cherry-pick, and tags.**
 - **Guided conflict resolution** — this is milestone 2. It's the scariest part of git for a
   beginner and the most complex UI in the product; it deserves its own design pass rather than
   being squeezed in.
-- **Hunk-level staging** — staging is whole-file for now.
 - **A diff viewer** — the Changes tab lists *what* changed, not the contents of the change.
-- **Remote management and submodules.**
+- **Remote management.**
+- **Hunk-level staging — declined.** It needs a constructed patch on stdin, and `GitRunner` takes
+  argv arrays only, never a constructed string. That single constraint is why quoting and
+  injection defects can't occur here. It's also an expert affordance in a tool premised on the
+  absence of expertise.
+- **Submodules — declined.** They confuse experts. A tool for people who don't know git has no
+  business shipping them.
 
 ## Project layout
 

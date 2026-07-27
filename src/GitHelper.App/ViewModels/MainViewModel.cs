@@ -27,6 +27,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     private readonly ISettingsStore _settings;
     private readonly IUiDispatcher _dispatcher;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly CancellationTokenSource _disposing = new();
+    private int _refreshesInFlight;
 
     private string? _repoPath;
 
@@ -79,6 +81,14 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     public BranchesViewModel Branches { get; }
 
+    /// <summary>
+    /// The highest number of refreshes ever observed running at once. Exposed for tests:
+    /// the gate's whole purpose is that this never exceeds one, and asserting that directly
+    /// is deterministic, unlike waiting for a collection corruption that only manifests
+    /// intermittently.
+    /// </summary>
+    internal int PeakConcurrentRefreshes { get; private set; }
+
     [ObservableProperty] private bool _isRepositoryOpen;
     [ObservableProperty] private string _repositoryName = string.Empty;
     [ObservableProperty] private string _branchLabel = string.Empty;
@@ -107,9 +117,25 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         // the same moment — running an action writes to .git, which is exactly what the
         // watcher is watching. Overlapping refreshes double the git work and can interleave
         // two different snapshots into the collections the views are bound to.
-        await _refreshGate.WaitAsync(ct);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposing.Token);
+
         try
         {
+            await _refreshGate.WaitAsync(linked.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposed, or the caller cancelled, while queued. Disposing a SemaphoreSlim
+            // out from under a parked WaitAsync leaves it hanging forever with no
+            // exception, so the wait must be cancellable rather than simply abandoned.
+            return;
+        }
+
+        try
+        {
+            var inFlight = Interlocked.Increment(ref _refreshesInFlight);
+            if (inFlight > PeakConcurrentRefreshes) PeakConcurrentRefreshes = inFlight;
+
             var state = await _reader.ReadAsync(_repoPath, ct);
 
             RepositoryName = new DirectoryInfo(state.RepoRoot).Name;
@@ -123,17 +149,24 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         }
         finally
         {
+            Interlocked.Decrement(ref _refreshesInFlight);
             _refreshGate.Release();
         }
     }
 
     public void Dispose()
     {
+        // Cancel first: this releases anything parked on the refresh gate. Note the gate
+        // itself is deliberately NOT disposed — a holder mid-refresh would then throw
+        // ObjectDisposedException on Release, and SemaphoreSlim only requires disposal when
+        // its AvailableWaitHandle has been used, which this class never touches.
+        _disposing.Cancel();
+
         Startup.RepositoryOpenedAsync = null;
         Explain.ActionCompletedAsync = null;
         _watcher.Dispose();
         CommandLog.Dispose();
-        _refreshGate.Dispose();
+        _disposing.Dispose();
     }
 
     private async Task OpenRepositoryAsync(string repoRoot, CancellationToken ct = default)

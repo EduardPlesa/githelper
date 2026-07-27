@@ -5064,6 +5064,41 @@ public class MainViewModelTests
         // snapshot rather than an interleaving of several.
         Assert.Equal(main.CommandLog.Entries.Count, main.CommandLog.Entries.Distinct().Count());
         Assert.Single(main.Changes.Unstaged);
+
+        // The collection-corruption assertions above only manifest probabilistically; this
+        // asserts the gate's actual invariant directly and deterministically.
+        Assert.Equal(1, main.PeakConcurrentRefreshes);
+    }
+
+    [Fact]
+    public async Task DisposeDoesNotStrandARefreshQueuedOnTheGate()
+    {
+        // Disposing a SemaphoreSlim out from under a parked WaitAsync leaves that caller
+        // hanging forever with no exception, so a refresh queued at the moment of disposal
+        // must be released rather than abandoned.
+        using var repo = await TestRepo.CreateAsync();
+        var f = NewFixture();
+        var main = f.Main;
+        await main.Startup.OpenAsync(repo.Path);
+
+        // Several refreshes in flight, so at least one is very likely queued on the gate.
+        var refreshes = Enumerable.Range(0, 8).Select(_ => main.RefreshAsync()).ToArray();
+        main.Dispose();
+
+        var all = Task.WhenAll(refreshes);
+        var finished = await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(10)));
+
+        Assert.Same(all, finished);
+
+        // The only failure this test guards against is a hang (checked above); a queued
+        // wait released by cancellation rather than by acquiring the gate is acceptable.
+        try
+        {
+            await all;
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     [Fact]
@@ -5225,6 +5260,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     private readonly ISettingsStore _settings;
     private readonly IUiDispatcher _dispatcher;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly CancellationTokenSource _disposing = new();
+    private int _refreshesInFlight;
 
     private string? _repoPath;
 
@@ -5259,6 +5296,10 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
         Startup.RepositoryOpenedAsync = (repoRoot, ct) => OpenRepositoryAsync(repoRoot, ct);
         Explain.ActionCompletedAsync = OnActionCompletedAsync;
+
+        // Hop to the UI thread: the watcher fires on a thread-pool thread, and the refresh
+        // rebuilds collections that are bound to controls.
+        _watcher.OnChanged = () => _dispatcher.Post(() => _ = RefreshAsync());
     }
 
     public StartupViewModel Startup { get; }
@@ -5272,6 +5313,14 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public HistoryViewModel History { get; }
 
     public BranchesViewModel Branches { get; }
+
+    /// <summary>
+    /// The highest number of refreshes ever observed running at once. Exposed for tests:
+    /// the gate's whole purpose is that this never exceeds one, and asserting that directly
+    /// is deterministic, unlike waiting for a collection corruption that only manifests
+    /// intermittently.
+    /// </summary>
+    internal int PeakConcurrentRefreshes { get; private set; }
 
     [ObservableProperty] private bool _isRepositoryOpen;
     [ObservableProperty] private string _repositoryName = string.Empty;
@@ -5301,9 +5350,25 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         // the same moment — running an action writes to .git, which is exactly what the
         // watcher is watching. Overlapping refreshes double the git work and can interleave
         // two different snapshots into the collections the views are bound to.
-        await _refreshGate.WaitAsync(ct);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposing.Token);
+
         try
         {
+            await _refreshGate.WaitAsync(linked.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposed, or the caller cancelled, while queued. Disposing a SemaphoreSlim
+            // out from under a parked WaitAsync leaves it hanging forever with no
+            // exception, so the wait must be cancellable rather than simply abandoned.
+            return;
+        }
+
+        try
+        {
+            var inFlight = Interlocked.Increment(ref _refreshesInFlight);
+            if (inFlight > PeakConcurrentRefreshes) PeakConcurrentRefreshes = inFlight;
+
             var state = await _reader.ReadAsync(_repoPath, ct);
 
             RepositoryName = new DirectoryInfo(state.RepoRoot).Name;
@@ -5317,30 +5382,33 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         }
         finally
         {
+            Interlocked.Decrement(ref _refreshesInFlight);
             _refreshGate.Release();
         }
     }
 
     public void Dispose()
     {
+        // Cancel first: this releases anything parked on the refresh gate. Note the gate
+        // itself is deliberately NOT disposed — a holder mid-refresh would then throw
+        // ObjectDisposedException on Release, and SemaphoreSlim only requires disposal when
+        // its AvailableWaitHandle has been used, which this class never touches.
+        _disposing.Cancel();
+
         Startup.RepositoryOpenedAsync = null;
         Explain.ActionCompletedAsync = null;
         _watcher.Dispose();
         CommandLog.Dispose();
-        _refreshGate.Dispose();
+        _disposing.Dispose();
     }
 
-    private void OnRepositoryOpened(object? sender, string repoRoot)
-        // The event handler cannot be async, so the open is started and left to run.
-        => _ = OpenRepositoryAsync(repoRoot);
-
-    private async Task OpenRepositoryAsync(string repoRoot)
+    private async Task OpenRepositoryAsync(string repoRoot, CancellationToken ct = default)
     {
         _repoPath = repoRoot;
         Explain.Clear();
         StatusMessage = null;
 
-        await RefreshAsync();
+        await RefreshAsync(ct);
 
         IsRepositoryOpen = true;
 
@@ -5349,14 +5417,14 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         _watcher.Watch(repoRoot);
     }
 
-    private void OnActionCompleted(object? sender, ActionOutcome outcome)
+    private async Task OnActionCompletedAsync(ActionOutcome outcome, CancellationToken ct)
     {
         if (outcome.Narration is { Length: > 0 }) StatusMessage = outcome.Narration;
 
         Changes.OnActionCompleted(outcome);
         Branches.OnActionCompleted(outcome);
 
-        _ = RefreshAsync();
+        await RefreshAsync(ct);
     }
 
     private Task CloseRepositoryAsync()
@@ -5465,7 +5533,7 @@ Then in `MainViewModel`'s constructor, after assigning `_watcher`, add:
 - [ ] **Step 5: Run the tests**
 
 Run: `dotnet test tests/GitHelper.App.Tests/GitHelper.App.Tests.csproj --filter "MainViewModelTests|RepoWatcherTests"`
-Expected: PASS, 20 tests (14 main-viewmodel facts, 6 watcher facts — the watcher tests still pass because the constructor callback is now the initial value of `OnChanged`).
+Expected: PASS, 21 tests (15 main-viewmodel facts, 6 watcher facts — the watcher tests still pass because the constructor callback is now the initial value of `OnChanged`).
 
 - [ ] **Step 6: Run the whole suite**
 

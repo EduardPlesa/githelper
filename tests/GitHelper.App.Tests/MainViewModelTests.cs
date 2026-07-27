@@ -135,6 +135,41 @@ public class MainViewModelTests
         // snapshot rather than an interleaving of several.
         Assert.Equal(main.CommandLog.Entries.Count, main.CommandLog.Entries.Distinct().Count());
         Assert.Single(main.Changes.Unstaged);
+
+        // The collection-corruption assertions above only manifest probabilistically; this
+        // asserts the gate's actual invariant directly and deterministically.
+        Assert.Equal(1, main.PeakConcurrentRefreshes);
+    }
+
+    [Fact]
+    public async Task DisposeDoesNotStrandARefreshQueuedOnTheGate()
+    {
+        // Disposing a SemaphoreSlim out from under a parked WaitAsync leaves that caller
+        // hanging forever with no exception, so a refresh queued at the moment of disposal
+        // must be released rather than abandoned.
+        using var repo = await TestRepo.CreateAsync();
+        var f = NewFixture();
+        var main = f.Main;
+        await main.Startup.OpenAsync(repo.Path);
+
+        // Several refreshes in flight, so at least one is very likely queued on the gate.
+        var refreshes = Enumerable.Range(0, 8).Select(_ => main.RefreshAsync()).ToArray();
+        main.Dispose();
+
+        var all = Task.WhenAll(refreshes);
+        var finished = await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(10)));
+
+        Assert.Same(all, finished);
+
+        // The only failure this test guards against is a hang (checked above); a queued
+        // wait released by cancellation rather than by acquiring the gate is acceptable.
+        try
+        {
+            await all;
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     [Fact]

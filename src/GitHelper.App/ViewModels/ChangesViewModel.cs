@@ -22,6 +22,7 @@ public sealed partial class ChangesViewModel : ViewModelBase
         StageAllCommand = new AsyncRelayCommand(() => InvokeAsync("stage-all", path: null));
         UnstageAllCommand = new AsyncRelayCommand(() => InvokeAsync("unstage-all", path: null));
         CommitCommand = new AsyncRelayCommand(CommitAsync);
+        PushCommand = new AsyncRelayCommand(() => InvokeAsync("push", path: null));
     }
 
     public ObservableCollection<FileChangeRowViewModel> Staged { get; } = new();
@@ -31,12 +32,21 @@ public sealed partial class ChangesViewModel : ViewModelBase
     [ObservableProperty] private string _commitMessage = string.Empty;
     [ObservableProperty] private bool _hasStagedChanges;
     [ObservableProperty] private bool _hasAnyChanges;
+    [ObservableProperty] private bool _hasUnpushedCommits;
+    [ObservableProperty] private string _unpushedSummary = string.Empty;
 
     public IAsyncRelayCommand StageAllCommand { get; }
 
     public IAsyncRelayCommand UnstageAllCommand { get; }
 
     public IAsyncRelayCommand CommitCommand { get; }
+
+    /// <summary>
+    /// The same "push" action the Branches tab offers, surfaced here as well. Committing
+    /// happens on this tab, so ending the flow with no hint that the work is still local
+    /// left the next step discoverable only by knowing where to look for it.
+    /// </summary>
+    public IAsyncRelayCommand PushCommand { get; }
 
     public void Update(RepoState state)
     {
@@ -54,6 +64,44 @@ public sealed partial class ChangesViewModel : ViewModelBase
 
         HasStagedChanges = Staged.Count > 0;
         HasAnyChanges = Staged.Count > 0 || Unstaged.Count > 0;
+
+        UpdatePushPrompt(state);
+    }
+
+    /// <summary>
+    /// Decides whether to offer "send changes" here, and what to call the situation.
+    /// Presentation only, and deliberately separate from BranchesViewModel's sync summary:
+    /// that one describes the branch in both directions, this one answers a single question —
+    /// is there local work that has not left this computer?
+    /// </summary>
+    private void UpdatePushPrompt(RepoState state)
+    {
+        // Every precondition on the push action must already hold. Offering the button
+        // otherwise would show a beginner a control whose only possible outcome is a
+        // blocked-action message.
+        if (!state.HasRemote || !state.HasCommits || state.IsDetached)
+        {
+            HasUnpushedCommits = false;
+            UnpushedSummary = string.Empty;
+            return;
+        }
+
+        if (state.Upstream is null)
+        {
+            // With no upstream there is no ahead count to report — but this is exactly the
+            // case that matters most, because none of this branch is on the server at all.
+            HasUnpushedCommits = true;
+            UnpushedSummary = "This branch is not on the server yet";
+            return;
+        }
+
+        HasUnpushedCommits = state.Ahead > 0;
+        UnpushedSummary = state.Ahead switch
+        {
+            <= 0 => string.Empty,
+            1 => "1 commit to send",
+            _ => $"{state.Ahead} commits to send",
+        };
     }
 
     /// <summary>

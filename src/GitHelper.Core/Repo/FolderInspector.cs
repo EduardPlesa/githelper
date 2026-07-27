@@ -50,7 +50,12 @@ public sealed class FolderInspector
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    // A folder we cannot read tells us nothing; it must not break inspection.
+                    // A folder we cannot read, or one that vanishes mid-scan (deleted,
+                    // disconnected network share, broken junction), tells us nothing about the
+                    // rest of the tree; it must not abort the scan of its still-live siblings.
+                }
+                catch (IOException)
+                {
                 }
             }
         }

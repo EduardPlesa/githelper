@@ -73,6 +73,31 @@ public class FolderInspectorTests : IDisposable
     }
 
     [Fact]
+    public void ADotNetMarkerWinsOverAPythonMarkerInTheSameFolder()
+    {
+        // Detect() documents that a csproj outranks a stray .py file; pin that ordering so a
+        // future reshuffle of the marker checks fails a test instead of silently flipping it.
+        Write("App.csproj");
+        Write("script.py");
+
+        Assert.Equal(ProjectType.DotNet, new FolderInspector().Inspect(_dir).ProjectType);
+    }
+
+    [Fact]
+    public void DetectionDoesNotDescendTwoLevels()
+    {
+        // The one-level-down limit exists specifically to avoid walking things like
+        // node_modules on every refresh; a marker two levels down must be invisible to both
+        // FileCount and ProjectType, or that limit isn't actually doing anything.
+        Write("A/B/App.csproj");
+
+        var state = new FolderInspector().Inspect(_dir);
+
+        Assert.Equal(0, state.FileCount);
+        Assert.Equal(ProjectType.Generic, state.ProjectType);
+    }
+
+    [Fact]
     public void FileCountIgnoresTheGitDirectory()
     {
         // .git holds hundreds of files; counting them would tell the user nothing true.

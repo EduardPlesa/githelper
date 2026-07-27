@@ -6,11 +6,12 @@ target/
 build/
 out/
 
-# Compiled jars are build output too, but the Gradle wrapper jar is the
-# exception: it is committed so the wrapper can bootstrap a build on a
-# machine that doesn't have Gradle installed yet.
+# Compiled jars are build output too, but wrapper jars are the exception:
+# they are committed so the wrappers can bootstrap a build on a machine
+# that doesn't have Gradle or Maven installed yet.
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
+!.mvn/wrapper/maven-wrapper.jar
 
 # Gradle's local working directory.
 .gradle/

@@ -71,6 +71,23 @@
                 Command="{Binding CommitCommand}"
                 IsEnabled="{Binding HasStagedChanges}"
                 HorizontalAlignment="Stretch" />
+
+        <!-- The commit -> send handoff. Committing ends here, so this is where a beginner
+             needs telling that the work is saved but has not left the machine. Same push
+             action as the Branches tab, surfaced at the moment it becomes relevant. -->
+        <Border IsVisible="{Binding HasUnpushedCommits}"
+                Background="#20808080" CornerRadius="4" Padding="8">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="1" VerticalAlignment="Center">
+              <TextBlock Text="{Binding UnpushedSummary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+              <TextBlock Text="Saved on this computer, but not on the server yet."
+                         Opacity="0.7" FontSize="12" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="Send changes"
+                    Command="{Binding PushCommand}"
+                    VerticalAlignment="Center" Margin="8,0,0,0" />
+          </Grid>
+        </Border>
       </StackPanel>
     </Border>
 

@@ -82,11 +82,12 @@ public class ShellTests
         var settings = new InMemorySettingsStore();
         var dispatcher = new StubDispatcher();
         var explain = new ExplainPanelViewModel(service, new StubConfirmationDialog(), settings);
+        var inspector = new FolderInspector();
 
         return new MainViewModel(
             reader,
             new StartupViewModel(
-                settings, new StubFolderPicker(), reader, new GitEnvironment(runner), new FolderInspector()),
+                settings, new StubFolderPicker(), reader, new GitEnvironment(runner), inspector),
             explain,
             new CommandLogViewModel(log, dispatcher),
             new ChangesViewModel(explain),
@@ -95,7 +96,8 @@ public class ShellTests
             new RepoWatcher(TimeSpan.FromMilliseconds(50), () => { }),
             new ThemeController(),
             settings,
-            dispatcher);
+            dispatcher,
+            inspector);
     }
 
     [AvaloniaFact]

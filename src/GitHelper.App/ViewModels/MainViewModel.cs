@@ -3,7 +3,9 @@ using CommunityToolkit.Mvvm.Input;
 using GitHelper.App.Infrastructure;
 using GitHelper.App.Settings;
 using GitHelper.Core.Actions;
+using GitHelper.Core.Model;
 using GitHelper.Core.Repo;
+using GitHelper.Core.Setup;
 
 namespace GitHelper.App.ViewModels;
 
@@ -26,6 +28,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     private readonly ThemeController _themeController;
     private readonly ISettingsStore _settings;
     private readonly IUiDispatcher _dispatcher;
+    private readonly FolderInspector _inspector;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly CancellationTokenSource _disposing = new();
     private int _refreshesInFlight;
@@ -43,13 +46,15 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         RepoWatcher watcher,
         ThemeController themeController,
         ISettingsStore settings,
-        IUiDispatcher dispatcher)
+        IUiDispatcher dispatcher,
+        FolderInspector inspector)
     {
         _reader = reader;
         _watcher = watcher;
         _themeController = themeController;
         _settings = settings;
         _dispatcher = dispatcher;
+        _inspector = inspector;
 
         Startup = startup;
         Explain = explain;
@@ -63,6 +68,10 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
         Startup.RepositoryOpenedAsync = (repoRoot, ct) => OpenRepositoryAsync(repoRoot, ct);
         Explain.ActionCompletedAsync = OnActionCompletedAsync;
+
+        Startup.InitRequestedAsync = (folderPath, ct) =>
+            Explain.ShowSetupAsync(folderPath, new SetupRequest(SetupService.InitRepository), ct);
+        Explain.SetupCompletedAsync = OnSetupCompletedAsync;
 
         // Hop to the UI thread: the watcher fires on a thread-pool thread, and the refresh
         // rebuilds collections that are bound to controls.
@@ -158,8 +167,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
                 ? "not on a branch (detached HEAD)"
                 : state.Branch ?? "no branch";
 
-            // Task 9 supplies the real FolderState; the banner stays hidden until then.
-            Changes.Update(state, null);
+            Changes.Update(state, _inspector.Inspect(state.RepoRoot));
             History.Update(state);
             Branches.Update(state);
         }
@@ -180,6 +188,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
         Startup.RepositoryOpenedAsync = null;
         Explain.ActionCompletedAsync = null;
+        Startup.InitRequestedAsync = null;
+        Explain.SetupCompletedAsync = null;
         _watcher.Dispose();
         CommandLog.Dispose();
         _disposing.Dispose();
@@ -206,6 +216,26 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
         Changes.OnActionCompleted(outcome);
         Branches.OnActionCompleted(outcome);
+
+        await RefreshAsync(ct);
+    }
+
+    /// <summary>
+    /// A folder that has just become a repository is opened straight away, so the user lands
+    /// in the normal view rather than being sent back to the startup screen to find it again.
+    /// </summary>
+    private async Task OnSetupCompletedAsync(SetupOutcome outcome, CancellationToken ct)
+    {
+        if (outcome.Narration is { Length: > 0 }) StatusMessage = outcome.Narration;
+
+        if (!outcome.Success) return;
+
+        if (_repoPath is null)
+        {
+            var folder = Startup.PendingFolder;
+            if (folder is not null) await OpenRepositoryAsync(folder.Path, ct);
+            return;
+        }
 
         await RefreshAsync(ct);
     }

@@ -27,8 +27,9 @@ public class MainViewModelTests
         var dispatcher = new StubDispatcher();
 
         var explain = new ExplainPanelViewModel(service, new StubConfirmationDialog(), settings);
+        var inspector = new FolderInspector();
         var startup = new StartupViewModel(
-            settings, picker, reader, new GitEnvironment(runner), new FolderInspector());
+            settings, picker, reader, new GitEnvironment(runner), inspector);
 
         var main = new MainViewModel(
             reader,
@@ -41,7 +42,8 @@ public class MainViewModelTests
             new RepoWatcher(TimeSpan.FromMilliseconds(50), () => { }),
             new ThemeController(),
             settings,
-            dispatcher);
+            dispatcher,
+            inspector);
 
         return new Fixture(main, settings, picker, log);
     }

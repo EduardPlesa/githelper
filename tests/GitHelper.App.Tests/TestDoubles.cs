@@ -94,3 +94,16 @@ public sealed class StubGitRunner : IGitRunner
         return Task.FromResult(result);
     }
 }
+
+public sealed class StubBrowserLauncher : IBrowserLauncher
+{
+    public string? LastUrl { get; private set; }
+
+    public int CallCount { get; private set; }
+
+    public void Open(string url)
+    {
+        CallCount++;
+        LastUrl = url;
+    }
+}

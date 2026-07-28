@@ -254,9 +254,21 @@ public class PreconditionTests
     [Fact]
     public void RequiresValidRemoteUrl_RejectsSomethingThatIsNotAnAddressAtAll()
     {
-        var result = new RequiresValidRemoteUrl().Evaluate(State(hasRemote: false), UrlRequest("my project"));
+        var result = new RequiresValidRemoteUrl().Evaluate(State(hasRemote: false), UrlRequest("my-project"));
 
         Assert.False(result.Satisfied);
         Assert.Contains("https://", result.Message!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RequiresValidRemoteUrl_RejectsWhitespaceInAnSshAddressToo()
+    {
+        // The git@ form is checked by the same rule as the https:// one — a stray space
+        // is a paste mistake either way.
+        var result = new RequiresValidRemoteUrl()
+            .Evaluate(State(hasRemote: false), UrlRequest("git@github.com: me/project.git"));
+
+        Assert.False(result.Satisfied);
+        Assert.Contains("space", result.Message!, StringComparison.OrdinalIgnoreCase);
     }
 }

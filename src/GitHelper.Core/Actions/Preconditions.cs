@@ -180,6 +180,11 @@ public sealed class RequiresValidRemoteUrl : IPrecondition
                 "An address cannot start with a dash — git would read that as an instruction "
                 + "rather than a place. Copy the address again from GitHub.");
 
+        if (url.Any(char.IsWhiteSpace))
+            return PreconditionResult.Fail(
+                "That address has a space in it, so something else was probably copied along "
+                + "with it. Copy just the address.");
+
         if (url.StartsWith("git@", StringComparison.Ordinal))
             return PreconditionResult.Ok;
 
@@ -187,11 +192,6 @@ public sealed class RequiresValidRemoteUrl : IPrecondition
             return PreconditionResult.Fail(
                 "A project address starts with https:// or git@. Copy it from the green Code "
                 + "button on the project's page on GitHub.");
-
-        if (url.Any(char.IsWhiteSpace))
-            return PreconditionResult.Fail(
-                "That address has a space in it, so something else was probably copied along "
-                + "with it. Copy just the address.");
 
         return IsPageInsideTheProject(url)
             ? PreconditionResult.Fail(

@@ -116,6 +116,27 @@ public class TabViewTests
     }
 
     [AvaloniaFact]
+    public void ChangesView_ShowsTheConnectBoxWhenThereIsNoRemote()
+    {
+        var vm = new ChangesViewModel(NewPanel(), new StubBrowserLauncher());
+        vm.Update(
+            new GitHelper.Core.Model.RepoState(
+                RepoRoot: @"C:\r", Branch: "main", IsDetached: false, Upstream: null,
+                Ahead: 0, Behind: 0, HasCommits: true, HasRemote: false,
+                Changes: Array.Empty<GitHelper.Core.Model.FileChange>(),
+                RecentCommits: Array.Empty<GitHelper.Core.Model.CommitInfo>(),
+                Branches: Array.Empty<GitHelper.Core.Model.BranchInfo>()),
+            null);
+
+        var view = new ChangesView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+
+        Assert.NotNull(view.FindControl<TextBox>("RemoteUrlBox"));
+        Assert.True(vm.HasNoRemoteOffer);
+    }
+
+    [AvaloniaFact]
     public async Task BranchesView_BindsTheNewBranchNameBoxBothWays()
     {
         using var repo = await TestRepo.CreateAsync();

@@ -548,7 +548,7 @@ git commit -m "feat: add connect-remote and disconnect-remote, with the content 
 - Consumes: `disconnect-remote` exists (Task 2), so the copy can point at it by name.
 - Produces: no new types. Two new translator rules, one reworded rule, one reworded content section.
 
-**Why `(fetch first)` gets its own rule ahead of `non-fast-forward`.** Both describe a rejected push, but the causes are different and so is the way out. The existing rule blames a collaborator, which is right for an established branch and wrong for the case this feature creates — a brand-new repository the user let GitHub seed with a README. Rules are ordered and first match wins, so the specific one goes first.
+**Why `(fetch first)` gets its own rule ahead of `non-fast-forward`.** Git reports `(fetch first)` whenever the server has a commit this copy has never seen — that covers both a collaborator having pushed already and, the case this feature creates, a brand-new repository the user let GitHub seed with a README. Git only reports `(non-fast-forward)` once the branch has been fetched and the two histories have diverged. Since one string covers two causes, the rule names both rather than guessing which one happened. Rules are ordered and first match wins, so the specific one goes first.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -569,6 +569,21 @@ Add to `tests/GitHelper.Core.Tests/ErrorTranslatorTests.cs`:
             translated.Summary + " " + translated.Explanation,
             StringComparison.OrdinalIgnoreCase);
         Assert.NotEmpty(translated.NextSteps);
+    }
+
+    [Fact]
+    public void Translate_AlsoOffersFetchingWhenSomeoneElsePushedFirst()
+    {
+        // The same "(fetch first)" git produces when a collaborator pushed and this copy
+        // has not fetched yet — the advice must work for that case too, not only the
+        // freshly created repository.
+        var translated = ErrorTranslator.Translate(Failure(
+            " ! [rejected]        main -> main (fetch first)\n"
+            + "error: failed to push some refs to 'https://github.com/team/project.git'"))!;
+
+        Assert.Contains(
+            translated.NextSteps,
+            step => step.Contains("Get the changes from the server first", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -610,20 +625,21 @@ Expected: three failures. The first two report the generic non-fast-forward word
 In `src/GitHelper.Core/Errors/ErrorTranslator.cs`, make the `(fetch first)` rule the **first** entry in `Rules`, ahead of the existing `non-fast-forward` one:
 
 ```csharp
-        // Ahead of "non-fast-forward" deliberately: both are a rejected push, but this is
-        // the first-push case, where the cause is the repository having been created with a
-        // README rather than a collaborator having pushed.
+        // Ahead of "non-fast-forward" deliberately: git reports "(fetch first)" when the
+        // server has a commit this copy has never seen, and "(non-fast-forward)" only once
+        // it has been fetched and the two have diverged. Both causes below produce the
+        // former, so the copy names both rather than guessing.
         new("(fetch first)",
-            "The repository on GitHub already has something in it",
+            "The server has work your copy has not seen",
             "Your send was refused because the copy on the server has a commit yours knows "
-            + "nothing about. This nearly always means the repository was created with a "
-            + "README, a .gitignore, or a licence — GitHub commits those for you, and the two "
-            + "histories then have no common starting point.",
+            + "nothing about. Either someone else pushed and you have not fetched yet, or — if "
+            + "this was your first send — the repository was created with a README, a .gitignore, "
+            + "or a licence, which GitHub commits for you.",
             new[]
             {
-                "Create a second repository on GitHub, this time with every 'add a file' "
-                + "option left unticked.",
-                "Disconnect from the old address, connect to the new one, and send again.",
+                "Get the changes from the server first, then send yours again.",
+                "If this was your first send, the repository was created with files in it: make a "
+                + "new one with every 'add a file' option unticked, disconnect, and connect to that.",
             }),
 ```
 

@@ -91,6 +91,21 @@ public class ErrorTranslatorTests
     }
 
     [Fact]
+    public void Translate_AlsoOffersFetchingWhenSomeoneElsePushedFirst()
+    {
+        // The same "(fetch first)" git produces when a collaborator pushed and this copy
+        // has not fetched yet — the advice must work for that case too, not only the
+        // freshly created repository.
+        var translated = ErrorTranslator.Translate(Failure(
+            " ! [rejected]        main -> main (fetch first)\n"
+            + "error: failed to push some refs to 'https://github.com/team/project.git'"))!;
+
+        Assert.Contains(
+            translated.NextSteps,
+            step => step.Contains("Get the changes from the server first", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Translate_StillBlamesTheOtherPersonForAnOrdinaryNonFastForward()
     {
         // The general rule must survive the more specific one being added ahead of it.

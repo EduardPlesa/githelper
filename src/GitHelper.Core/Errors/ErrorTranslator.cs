@@ -14,20 +14,21 @@ public static class ErrorTranslator
     /// <summary>Ordered, first match wins. Specific patterns must precede general ones.</summary>
     private static readonly Rule[] Rules =
     {
-        // Ahead of "non-fast-forward" deliberately: both are a rejected push, but this is
-        // the first-push case, where the cause is the repository having been created with a
-        // README rather than a collaborator having pushed.
+        // Ahead of "non-fast-forward" deliberately: git reports "(fetch first)" when the
+        // server has a commit this copy has never seen, and "(non-fast-forward)" only once
+        // it has been fetched and the two have diverged. Both causes below produce the
+        // former, so the copy names both rather than guessing.
         new("(fetch first)",
-            "The repository on GitHub already has something in it",
+            "The server has work your copy has not seen",
             "Your send was refused because the copy on the server has a commit yours knows "
-            + "nothing about. This nearly always means the repository was created with a "
-            + "README, a .gitignore, or a licence — GitHub commits those for you, and the two "
-            + "histories then have no common starting point.",
+            + "nothing about. Either someone else pushed and you have not fetched yet, or — if "
+            + "this was your first send — the repository was created with a README, a .gitignore, "
+            + "or a licence, which GitHub commits for you.",
             new[]
             {
-                "Create a second repository on GitHub, this time with every 'add a file' "
-                + "option left unticked.",
-                "Disconnect from the old address, connect to the new one, and send again.",
+                "Get the changes from the server first, then send yours again.",
+                "If this was your first send, the repository was created with files in it: make a "
+                + "new one with every 'add a file' option unticked, disconnect, and connect to that.",
             }),
 
         new("non-fast-forward",

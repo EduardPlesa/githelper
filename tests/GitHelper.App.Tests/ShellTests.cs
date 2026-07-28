@@ -18,7 +18,8 @@ public class StartupViewModelFlagTests
         var runner = new GitRunner();
         settings = new InMemorySettingsStore();
         return new StartupViewModel(
-            settings, new StubFolderPicker(), new RepoStateReader(runner), new GitEnvironment(runner));
+            settings, new StubFolderPicker(), new RepoStateReader(runner), new GitEnvironment(runner),
+            new FolderInspector());
     }
 
     [Fact]
@@ -48,8 +49,10 @@ public class StartupViewModelFlagTests
     }
 
     [Fact]
-    public async Task HasError_TracksTheErrorMessage()
+    public async Task OpeningANonRepositoryFolderOffersToStartTrackingInsteadOfErroring()
     {
+        // A non-repository folder used to set HasError and dead-end. It is now the entry
+        // point for `git init`, so no error is raised — the offer flag is instead.
         var startup = NewStartup(out _);
         var dir = Path.Combine(Path.GetTempPath(), "githelper-notarepo-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -58,7 +61,8 @@ public class StartupViewModelFlagTests
         {
             await startup.OpenAsync(dir);
 
-            Assert.True(startup.HasError);
+            Assert.False(startup.HasError);
+            Assert.True(startup.IsOfferingInit);
         }
         finally
         {
@@ -81,7 +85,8 @@ public class ShellTests
 
         return new MainViewModel(
             reader,
-            new StartupViewModel(settings, new StubFolderPicker(), reader, new GitEnvironment(runner)),
+            new StartupViewModel(
+                settings, new StubFolderPicker(), reader, new GitEnvironment(runner), new FolderInspector()),
             explain,
             new CommandLogViewModel(log, dispatcher),
             new ChangesViewModel(explain),
@@ -159,7 +164,8 @@ public class ShellTests
             Current = AppSettings.Default.WithRepositoryOpened(@"C:\repos\demo"),
         };
         var startup = new StartupViewModel(
-            settings, new StubFolderPicker(), new RepoStateReader(runner), new GitEnvironment(runner));
+            settings, new StubFolderPicker(), new RepoStateReader(runner), new GitEnvironment(runner),
+            new FolderInspector());
         await startup.InitializeAsync();
 
         var view = new StartupOverlay { DataContext = startup };

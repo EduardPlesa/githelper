@@ -27,7 +27,8 @@ public class MainViewModelTests
         var dispatcher = new StubDispatcher();
 
         var explain = new ExplainPanelViewModel(service, new StubConfirmationDialog(), settings);
-        var startup = new StartupViewModel(settings, picker, reader, new GitEnvironment(runner));
+        var startup = new StartupViewModel(
+            settings, picker, reader, new GitEnvironment(runner), new FolderInspector());
 
         var main = new MainViewModel(
             reader,

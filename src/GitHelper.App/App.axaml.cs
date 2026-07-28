@@ -58,7 +58,7 @@ public partial class App : Application
         var confirmations = new AvaloniaConfirmationDialog(windowAccessor);
 
         var explain = new ExplainPanelViewModel(actions, confirmations, settings);
-        var startup = new StartupViewModel(settings, picker, reader, environment);
+        var startup = new StartupViewModel(settings, picker, reader, environment, new FolderInspector());
 
         return new MainViewModel(
             reader,

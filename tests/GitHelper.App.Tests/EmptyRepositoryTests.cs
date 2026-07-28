@@ -31,7 +31,7 @@ public class EmptyRepositoryTests
 
         var explain = new ExplainPanelViewModel(service, new StubConfirmationDialog(), settings);
         var startup = new StartupViewModel(
-            settings, new StubFolderPicker(), reader, new GitEnvironment(runner));
+            settings, new StubFolderPicker(), reader, new GitEnvironment(runner), new FolderInspector());
 
         var main = new MainViewModel(
             reader,

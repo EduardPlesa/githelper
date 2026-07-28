@@ -19,7 +19,7 @@ public class StartupViewModelTests
         var settings = new InMemorySettingsStore();
         var picker = new StubFolderPicker();
         var startup = new StartupViewModel(
-            settings, picker, new RepoStateReader(runner), new GitEnvironment(runner));
+            settings, picker, new RepoStateReader(runner), new GitEnvironment(runner), new FolderInspector());
         return new Fixture(startup, settings, picker);
     }
 
@@ -40,7 +40,7 @@ public class StartupViewModelTests
         var runner = new StubGitRunner { ThrowGitMissing = true };
         var startup = new StartupViewModel(
             new InMemorySettingsStore(), new StubFolderPicker(),
-            new RepoStateReader(runner), new GitEnvironment(runner));
+            new RepoStateReader(runner), new GitEnvironment(runner), new FolderInspector());
 
         await startup.InitializeAsync();
 
@@ -63,7 +63,7 @@ public class StartupViewModelTests
         };
         var startup = new StartupViewModel(
             new InMemorySettingsStore(), new StubFolderPicker(),
-            new RepoStateReader(runner), new GitEnvironment(runner));
+            new RepoStateReader(runner), new GitEnvironment(runner), new FolderInspector());
 
         await startup.InitializeAsync();
 
@@ -128,8 +128,10 @@ public class StartupViewModelTests
     }
 
     [Fact]
-    public async Task OpenAsync_ExplainsWhenTheFolderIsNotAGitProject()
+    public async Task OpenAsync_OffersToStartTrackingWhenTheFolderIsNotAGitProject()
     {
+        // Formerly a dead end reported through ErrorMessage; now the folder-is-not-a-repository
+        // case is the entry point for `git init`, covered in depth by StartupInitOfferTests.
         var dir = Path.Combine(Path.GetTempPath(), "githelper-notarepo-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var f = NewRealFixture();
@@ -141,7 +143,7 @@ public class StartupViewModelTests
             await f.Startup.OpenAsync(dir);
 
             Assert.False(raised);
-            Assert.False(string.IsNullOrWhiteSpace(f.Startup.ErrorMessage));
+            Assert.True(f.Startup.IsOfferingInit);
             Assert.Empty(f.Settings.Current.RecentRepositories);
         }
         finally

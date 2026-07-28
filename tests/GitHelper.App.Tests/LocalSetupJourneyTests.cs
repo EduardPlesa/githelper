@@ -27,7 +27,9 @@ public class LocalSetupJourneyTests : IDisposable
         catch (UnauthorizedAccessException) { }
     }
 
-    private static MainViewModel NewMain()
+    private static MainViewModel NewMain() => NewMain(out _);
+
+    private static MainViewModel NewMain(out InMemorySettingsStore settings)
     {
         var log = new CommandLog();
         var runner = new LoggingGitRunner(new GitRunner(), log);
@@ -36,7 +38,7 @@ public class LocalSetupJourneyTests : IDisposable
         var actions = new ActionService(runner, reader, content);
         var inspector = new FolderInspector();
         var setup = new SetupService(runner, inspector, content);
-        var settings = new InMemorySettingsStore();
+        settings = new InMemorySettingsStore();
         var dispatcher = new StubDispatcher();
         var explain = new ExplainPanelViewModel(
             actions, new StubConfirmationDialog(), settings, setup);
@@ -55,6 +57,28 @@ public class LocalSetupJourneyTests : IDisposable
             settings,
             dispatcher,
             inspector);
+    }
+
+    [Fact]
+    public async Task ANewlyCreatedRepositoryIsRememberedAsARecentProject()
+    {
+        // Creating a repository used to open it without ever recording it, so the one project
+        // the user had just made was missing from Recent projects on the next launch.
+        using var main = NewMain(out var settings);
+
+        await main.Startup.OpenAsync(_dir);
+        await main.Startup.StartTrackingCommand.ExecuteAsync(null);
+        await main.Explain.ConfirmCommand.ExecuteAsync(null);
+
+        Assert.True(main.IsRepositoryOpen);
+
+        // Compared by folder name: git resolves the repository root itself, and on Windows the
+        // temp path it returns can differ from _dir in case and separators.
+        var expected = Path.GetFileName(_dir);
+        Assert.Contains(
+            settings.Current.RecentRepositories,
+            p => string.Equals(Path.GetFileName(p.TrimEnd('/', '\\')), expected, StringComparison.Ordinal));
+        Assert.NotEmpty(main.Startup.Recents);
     }
 
     [Fact]

@@ -1,5 +1,9 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using GitHelper.App.Infrastructure;
 using GitHelper.App.Settings;
 using GitHelper.App.ViewModels;
@@ -8,6 +12,7 @@ using GitHelper.Core.Actions;
 using GitHelper.Core.Content;
 using GitHelper.Core.Git;
 using GitHelper.Core.Repo;
+using GitHelper.Core.Setup;
 
 namespace GitHelper.App.Tests;
 
@@ -83,6 +88,40 @@ public class ShellTests
         var dispatcher = new StubDispatcher();
         var explain = new ExplainPanelViewModel(service, new StubConfirmationDialog(), settings);
         var inspector = new FolderInspector();
+
+        return new MainViewModel(
+            reader,
+            new StartupViewModel(
+                settings, new StubFolderPicker(), reader, new GitEnvironment(runner), inspector),
+            explain,
+            new CommandLogViewModel(log, dispatcher),
+            new ChangesViewModel(explain),
+            new HistoryViewModel(explain),
+            new BranchesViewModel(explain),
+            new RepoWatcher(TimeSpan.FromMilliseconds(50), () => { }),
+            new ThemeController(),
+            settings,
+            dispatcher,
+            inspector);
+    }
+
+    /// <summary>
+    /// Like <see cref="NewMain"/>, but wired with a SetupService so the init-offer path
+    /// (Explain.ShowSetupAsync) can actually be driven, rather than throwing
+    /// InvalidOperationException the way a panel built without one does.
+    /// </summary>
+    private static MainViewModel NewMainWithSetup()
+    {
+        var log = new CommandLog();
+        var runner = new LoggingGitRunner(new GitRunner(), log);
+        var reader = new RepoStateReader(runner);
+        var content = ContentLibrary.Load();
+        var service = new ActionService(runner, reader, content);
+        var inspector = new FolderInspector();
+        var setup = new SetupService(runner, inspector, content);
+        var settings = new InMemorySettingsStore();
+        var dispatcher = new StubDispatcher();
+        var explain = new ExplainPanelViewModel(service, new StubConfirmationDialog(), settings, setup);
 
         return new MainViewModel(
             reader,
@@ -193,5 +232,66 @@ public class ShellTests
         await main.Startup.OpenAsync(repo.Path);
 
         Assert.False(scrim.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task StartupScrim_LeavesTheSetupConfirmButtonHitTestableRatherThanCoveringIt()
+    {
+        // Regression for a chicken-and-egg defect: IsRepositoryOpen (and so the scrim) only
+        // flips once `git init` has actually run, and the only way to run it is clicking
+        // Confirm on the init preview. If that preview is not raised above the scrim, Confirm
+        // is visible in the layout but every point on it hit-tests to the scrim instead — the
+        // user can see it and can never reach it. Bounds/visibility alone would not catch
+        // that, so this drives an actual point-based hit test at the button's own location.
+        var dir = Path.Combine(Path.GetTempPath(), "githelper-hittest-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "a.txt"), "x");
+
+        try
+        {
+            using var main = NewMainWithSetup();
+            var window = new MainWindow { DataContext = main };
+            window.Show();
+
+            await main.Startup.OpenAsync(dir);
+            Assert.True(main.Startup.IsOfferingInit);
+
+            await main.Startup.StartTrackingCommand.ExecuteAsync(null);
+            Assert.True(main.Explain.IsShowingSetup);
+            Assert.True(main.Explain.RequiresInlineConfirmation);
+
+            // Flush the queued layout pass so Bounds reflect the state above, not the first frame.
+            Dispatcher.UIThread.RunJobs();
+
+            // Explain is shared: ExplainPanelView is bound to it both behind the chrome (where
+            // it has always lived) and, with the fix, inside the scrim — so two "ConfirmButton"
+            // controls exist at once. That is fine; what matters is that at least one of them
+            // is actually reachable where it renders, not merely present in the visual tree.
+            var confirmButtons = window.GetVisualDescendants()
+                .OfType<Button>()
+                .Where(b => b.Name == "ConfirmButton")
+                .ToList();
+            Assert.NotEmpty(confirmButtons);
+
+            var reachable = confirmButtons.Any(button =>
+            {
+                var localCenter = new Point(button.Bounds.Width / 2, button.Bounds.Height / 2);
+                var pointInWindow = button.TranslatePoint(localCenter, window);
+                if (pointInWindow is not { } point) return false;
+
+                var hit = window.InputHitTest(point);
+                return hit is Visual visual
+                    && (ReferenceEquals(visual, button) || button.IsVisualAncestorOf(visual));
+            });
+
+            Assert.True(
+                reachable,
+                "Expected at least one Confirm button to hit-test to itself at the point where it "
+                    + "renders, but every rendered copy was covered by something on top of it.");
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
     }
 }

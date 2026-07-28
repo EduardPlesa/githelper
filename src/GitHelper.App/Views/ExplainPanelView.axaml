@@ -62,7 +62,8 @@
         <StackPanel Spacing="6" IsVisible="{Binding RequiresInlineConfirmation}">
           <CheckBox Content="Stop explaining this one"
                     IsChecked="{Binding SuppressExplanationForThisAction}" />
-          <Button Content="{Binding Title, StringFormat='Confirm — {0}'}"
+          <Button Name="ConfirmButton"
+                  Content="{Binding Title, StringFormat='Confirm — {0}'}"
                   Command="{Binding ConfirmCommand}"
                   HorizontalAlignment="Stretch" />
         </StackPanel>

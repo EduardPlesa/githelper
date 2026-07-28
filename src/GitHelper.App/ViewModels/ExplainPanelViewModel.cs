@@ -75,6 +75,14 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     [ObservableProperty] private bool _suppressExplanationForThisAction;
 
     /// <summary>
+    /// True while a setup operation (e.g. `git init`) is armed and its preview is showing.
+    /// The startup scrim uses this to swap its overlay for this same panel, so the user can
+    /// read the explanation and hit Confirm without the scrim having to come down first —
+    /// which it cannot, since IsRepositoryOpen only flips once the setup has already run.
+    /// </summary>
+    [ObservableProperty] private bool _isShowingSetup;
+
+    /// <summary>
     /// Invoked after a run so the shell can refresh repository state, and awaited so the
     /// refresh completes before RunAsync returns. A plain event could not be awaited.
     /// </summary>
@@ -134,6 +142,7 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
         // ConfirmCommand run that setup instead of the action just shown to the user.
         _folderPath = null;
         _setupRequest = null;
+        IsShowingSetup = false;
 
         _repoPath = repoPath;
         _request = request;
@@ -223,6 +232,7 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
 
         _folderPath = folderPath;
         _setupRequest = request;
+        IsShowingSetup = true;
 
         Title = preview.Title;
         CommandLine = preview.CommandLine ?? string.Empty;
@@ -277,6 +287,7 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
 
         _folderPath = null;
         _setupRequest = null;
+        IsShowingSetup = false;
 
         Title = string.Empty;
         CommandLine = string.Empty;

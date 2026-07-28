@@ -35,6 +35,11 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     private string? _repoPath;
 
+    // Captured when a setup operation is armed and consumed when it completes, rather than
+    // re-reading Startup.PendingFolder at completion time — the setup ran against this exact
+    // path, whereas PendingFolder could have moved on (or been cleared) in the meantime.
+    private string? _pendingSetupFolder;
+
     public MainViewModel(
         RepoStateReader reader,
         StartupViewModel startup,
@@ -70,7 +75,10 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Explain.ActionCompletedAsync = OnActionCompletedAsync;
 
         Startup.InitRequestedAsync = (folderPath, ct) =>
-            Explain.ShowSetupAsync(folderPath, new SetupRequest(SetupService.InitRepository), ct);
+        {
+            _pendingSetupFolder = folderPath;
+            return Explain.ShowSetupAsync(folderPath, new SetupRequest(SetupService.InitRepository), ct);
+        };
         Explain.SetupCompletedAsync = OnSetupCompletedAsync;
 
         // Hop to the UI thread: the watcher fires on a thread-pool thread, and the refresh
@@ -232,8 +240,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
         if (_repoPath is null)
         {
-            var folder = Startup.PendingFolder;
-            if (folder is not null) await OpenRepositoryAsync(folder.Path, ct);
+            var folder = _pendingSetupFolder;
+            _pendingSetupFolder = null;
+            if (folder is not null) await OpenRepositoryAsync(folder, ct);
             return;
         }
 

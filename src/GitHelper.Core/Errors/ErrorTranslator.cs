@@ -14,6 +14,22 @@ public static class ErrorTranslator
     /// <summary>Ordered, first match wins. Specific patterns must precede general ones.</summary>
     private static readonly Rule[] Rules =
     {
+        // Ahead of "non-fast-forward" deliberately: both are a rejected push, but this is
+        // the first-push case, where the cause is the repository having been created with a
+        // README rather than a collaborator having pushed.
+        new("(fetch first)",
+            "The repository on GitHub already has something in it",
+            "Your send was refused because the copy on the server has a commit yours knows "
+            + "nothing about. This nearly always means the repository was created with a "
+            + "README, a .gitignore, or a licence — GitHub commits those for you, and the two "
+            + "histories then have no common starting point.",
+            new[]
+            {
+                "Create a second repository on GitHub, this time with every 'add a file' "
+                + "option left unticked.",
+                "Disconnect from the old address, connect to the new one, and send again.",
+            }),
+
         new("non-fast-forward",
             "The server has work you do not have yet",
             "Your send was rejected because someone else added commits to this branch after you "
@@ -70,10 +86,25 @@ public static class ErrorTranslator
                 "Merge it somewhere first if you do.",
             }),
 
+        new("repository not found",
+            "There is no project at that address",
+            "Git reached the server, but found nothing at the address this project is "
+            + "connected to. Either the address has a typo in it, or the repository is "
+            + "private and this computer has not been given access.",
+            new[]
+            {
+                "Check the address against the one GitHub shows on the project's page.",
+                "Disconnect from GitHub and connect again with the corrected address.",
+            }),
+
         new("does not appear to be a git repository",
             "The server address does not work",
             "Git could not find a project at the address configured for this remote.",
-            new[] { "Check the project address in your git settings." }),
+            new[]
+            {
+                "Check the address against the project's page on GitHub.",
+                "Disconnect from GitHub and connect again with the corrected address.",
+            }),
 
         new("not possible to fast-forward",
             "Both you and the server have new work",

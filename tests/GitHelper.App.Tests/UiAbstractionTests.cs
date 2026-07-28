@@ -97,3 +97,17 @@ public class AvaloniaUiDispatcherTests
         Assert.True(reachedUiThread);
     }
 }
+
+public class StubBrowserLauncherTests
+{
+    [Fact]
+    public void RecordsTheUrlItWasAskedToOpen()
+    {
+        var browser = new StubBrowserLauncher();
+
+        browser.Open("https://github.com/new");
+
+        Assert.Equal("https://github.com/new", browser.LastUrl);
+        Assert.Equal(1, browser.CallCount);
+    }
+}

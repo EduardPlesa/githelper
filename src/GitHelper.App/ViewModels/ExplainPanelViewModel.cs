@@ -129,12 +129,19 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     {
         var preview = await _actions.PreviewAsync(repoPath, request, ct);
 
+        // Arming the action path disarms the setup path, so the two can never both fire:
+        // otherwise a stale _setupRequest from an earlier setup preview would make
+        // ConfirmCommand run that setup instead of the action just shown to the user.
+        _folderPath = null;
+        _setupRequest = null;
+
         _repoPath = repoPath;
         _request = request;
         _slots = preview.Slots;
 
         Title = preview.Action.Title;
         CommandLine = preview.CommandLine;
+        FileContents = null;
         DangerLevel = preview.Danger;
         // Fully qualified: this file already imports GitHelper.Core.Content, so a bare
         // "Content.SlotResolver" would be ambiguous between the two Content namespaces.

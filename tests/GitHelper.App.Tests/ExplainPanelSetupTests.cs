@@ -90,6 +90,28 @@ public class ExplainPanelSetupTests : IDisposable
     }
 
     [Fact]
+    public async Task ConfirmingAfterPreviewingAnActionRunsTheActionNotAStaleSetupPreview()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("a.txt", "x\n");
+        var panel = NewPanel();
+
+        // Arm the setup path first...
+        await panel.ShowSetupAsync(_dir, new SetupRequest("init-repository"));
+        // ...then arm the action path. ShowAsync must fully disarm the setup path, or
+        // Confirm below would run the stale "init-repository" setup against _dir instead
+        // of staging a.txt in the repository the user was just shown.
+        await panel.ShowAsync(repo.Path, new ActionRequest("stage-file", Path: "a.txt"));
+
+        await panel.ConfirmCommand.ExecuteAsync(null);
+
+        var state = await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path);
+        Assert.Single(state.Staged);
+        Assert.False(Directory.Exists(Path.Combine(_dir, ".git")));
+        Assert.False(panel.HasFileContents);
+    }
+
+    [Fact]
     public async Task ClearResetsTheFileContents()
     {
         File.WriteAllText(Path.Combine(_dir, "App.csproj"), "<Project />");

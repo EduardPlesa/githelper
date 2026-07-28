@@ -24,7 +24,7 @@ public sealed class ActionService(
         var state = await reader.ReadAsync(repoPath, ct);
 
         var blockers = Evaluate(action, state, request);
-        var slots = SlotBinder.Bind(state, request.Path, request.BranchName);
+        var slots = SlotBinder.Bind(state, request.Path, request.BranchName, request.RemoteUrl);
 
         // argv is only built when it can be built; a missing path would throw otherwise.
         var args = blockers.Count == 0

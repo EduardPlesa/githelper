@@ -86,4 +86,14 @@ public class SlotBinderTests
 
         Assert.Equal(SlotBinder.KnownSlots.OrderBy(s => s), values.Keys.OrderBy(s => s));
     }
+
+    [Fact]
+    public void RemoteUrlIsBoundWhenSuppliedAndDescribedWhenNot()
+    {
+        Assert.Equal(
+            "https://github.com/me/p.git",
+            SlotBinder.Bind(State(), remoteUrl: "https://github.com/me/p.git")["remoteUrl"]);
+
+        Assert.Equal("the address you paste", SlotBinder.Bind(State())["remoteUrl"]);
+    }
 }

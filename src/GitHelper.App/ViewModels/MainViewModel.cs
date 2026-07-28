@@ -158,7 +158,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
                 ? "not on a branch (detached HEAD)"
                 : state.Branch ?? "no branch";
 
-            Changes.Update(state);
+            // Task 9 supplies the real FolderState; the banner stays hidden until then.
+            Changes.Update(state, null);
             History.Update(state);
             Branches.Update(state);
         }

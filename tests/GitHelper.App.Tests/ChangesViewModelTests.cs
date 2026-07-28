@@ -34,7 +34,7 @@ public class ChangesViewModelTests
         await repo.GitAsync("add", "--", "staged.txt");
         var f = NewFixture();
 
-        f.Changes.Update(await f.Reader.ReadAsync(repo.Path));
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
 
         Assert.Equal(new[] { "staged.txt" }, f.Changes.Staged.Select(r => r.Path));
         Assert.Equal(new[] { "untracked.txt" }, f.Changes.Unstaged.Select(r => r.Path));
@@ -51,7 +51,7 @@ public class ChangesViewModelTests
         repo.WriteFile("a.txt", "edited again\n");
         var f = NewFixture();
 
-        f.Changes.Update(await f.Reader.ReadAsync(repo.Path));
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
 
         Assert.Contains("a.txt", f.Changes.Staged.Select(r => r.Path));
         Assert.Contains("a.txt", f.Changes.Unstaged.Select(r => r.Path));
@@ -63,7 +63,7 @@ public class ChangesViewModelTests
         using var repo = await TestRepo.CreateAsync();
         var f = NewFixture();
 
-        f.Changes.Update(await f.Reader.ReadAsync(repo.Path));
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
 
         Assert.Empty(f.Changes.Staged);
         Assert.Empty(f.Changes.Unstaged);
@@ -79,8 +79,8 @@ public class ChangesViewModelTests
         var f = NewFixture();
         var state = await f.Reader.ReadAsync(repo.Path);
 
-        f.Changes.Update(state);
-        f.Changes.Update(state);
+        f.Changes.Update(state, null);
+        f.Changes.Update(state, null);
 
         Assert.Single(f.Changes.Unstaged);
     }
@@ -119,7 +119,7 @@ public class ChangesViewModelTests
         using var repo = await TestRepo.CreateAsync();
         repo.WriteFile("a.txt", "x\n");
         var f = NewFixture();
-        f.Changes.Update(await f.Reader.ReadAsync(repo.Path));
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
 
         await f.Changes.Unstaged.Single().StageCommand.ExecuteAsync(null);
 
@@ -134,7 +134,7 @@ public class ChangesViewModelTests
         repo.WriteFile("a.txt", "x\n");
         await repo.GitAsync("add", "-A");
         var f = NewFixture();
-        f.Changes.Update(await f.Reader.ReadAsync(repo.Path));
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
 
         await f.Changes.Staged.Single().UnstageCommand.ExecuteAsync(null);
 
@@ -149,7 +149,7 @@ public class ChangesViewModelTests
         repo.WriteFile("README.md", "vandalised\n");
         var f = NewFixture();
         f.Confirmations.NextAnswer = false;
-        f.Changes.Update(await f.Reader.ReadAsync(repo.Path));
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
 
         await f.Changes.Unstaged.Single().DiscardCommand.ExecuteAsync(null);
 
@@ -167,7 +167,7 @@ public class ChangesViewModelTests
         repo.WriteFile("a.txt", "x\n");
         repo.WriteFile("b.txt", "y\n");
         var f = NewFixture();
-        f.Changes.Update(await f.Reader.ReadAsync(repo.Path));
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
 
         await f.Changes.StageAllCommand.ExecuteAsync(null);
 
@@ -182,7 +182,7 @@ public class ChangesViewModelTests
         repo.WriteFile("a.txt", "x\n");
         await repo.GitAsync("add", "-A");
         var f = NewFixture();
-        f.Changes.Update(await f.Reader.ReadAsync(repo.Path));
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
         f.Changes.CommitMessage = "add a file";
 
         await f.Changes.CommitCommand.ExecuteAsync(null);
@@ -200,7 +200,7 @@ public class ChangesViewModelTests
         repo.WriteFile("a.txt", "x\n");
         await repo.GitAsync("add", "-A");
         var f = NewFixture();
-        f.Changes.Update(await f.Reader.ReadAsync(repo.Path));
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
         f.Changes.CommitMessage = "add a file";
 
         await f.Changes.CommitCommand.ExecuteAsync(null);

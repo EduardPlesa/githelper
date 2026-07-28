@@ -51,7 +51,7 @@ public class ChangesPushPromptTests
     {
         var f = NewFixture();
 
-        f.Changes.Update(State(ahead: 0));
+        f.Changes.Update(State(ahead: 0), null);
 
         Assert.False(f.Changes.HasUnpushedCommits);
         Assert.Equal(string.Empty, f.Changes.UnpushedSummary);
@@ -62,7 +62,7 @@ public class ChangesPushPromptTests
     {
         var f = NewFixture();
 
-        f.Changes.Update(State(ahead: 1));
+        f.Changes.Update(State(ahead: 1), null);
 
         Assert.True(f.Changes.HasUnpushedCommits);
         Assert.Equal("1 commit to send", f.Changes.UnpushedSummary);
@@ -73,7 +73,7 @@ public class ChangesPushPromptTests
     {
         var f = NewFixture();
 
-        f.Changes.Update(State(ahead: 3));
+        f.Changes.Update(State(ahead: 3), null);
 
         Assert.Equal("3 commits to send", f.Changes.UnpushedSummary);
     }
@@ -85,7 +85,7 @@ public class ChangesPushPromptTests
         // because none of the branch is on the server at all.
         var f = NewFixture();
 
-        f.Changes.Update(State(ahead: 0, upstream: null));
+        f.Changes.Update(State(ahead: 0, upstream: null), null);
 
         Assert.True(f.Changes.HasUnpushedCommits);
         Assert.Contains("not on the server", f.Changes.UnpushedSummary);
@@ -98,7 +98,7 @@ public class ChangesPushPromptTests
         // blocked-action message.
         var f = NewFixture();
 
-        f.Changes.Update(State(ahead: 2, upstream: null, hasRemote: false));
+        f.Changes.Update(State(ahead: 2, upstream: null, hasRemote: false), null);
 
         Assert.False(f.Changes.HasUnpushedCommits);
     }
@@ -108,7 +108,7 @@ public class ChangesPushPromptTests
     {
         var f = NewFixture();
 
-        f.Changes.Update(State(upstream: null, hasCommits: false));
+        f.Changes.Update(State(upstream: null, hasCommits: false), null);
 
         Assert.False(f.Changes.HasUnpushedCommits);
     }
@@ -119,7 +119,7 @@ public class ChangesPushPromptTests
         // push is blocked by RequiresNotDetached, so the prompt must not offer it.
         var f = NewFixture();
 
-        f.Changes.Update(State(ahead: 1, isDetached: true));
+        f.Changes.Update(State(ahead: 1, isDetached: true), null);
 
         Assert.False(f.Changes.HasUnpushedCommits);
     }
@@ -129,7 +129,7 @@ public class ChangesPushPromptTests
     {
         using var repo = await TestRepo.CreateAsync();
         var f = NewFixture();
-        f.Changes.Update(await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path));
+        f.Changes.Update(await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path), null);
 
         await f.Changes.PushCommand.ExecuteAsync(null);
 
@@ -150,7 +150,7 @@ public class ChangesPushPromptTests
         var head = (await repo.GitAsync("rev-parse", "HEAD")).StdOut.Trim();
         await repo.GitAsync("checkout", "-q", head);
         var f = NewFixture();
-        f.Changes.Update(await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path));
+        f.Changes.Update(await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path), null);
 
         await f.Changes.PushCommand.ExecuteAsync(null);
 

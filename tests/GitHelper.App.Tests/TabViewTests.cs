@@ -46,7 +46,7 @@ public class TabViewTests
         var (repo, reader) = await RepoWithChangesAsync();
         using var _ = repo;
         var vm = new ChangesViewModel(NewPanel());
-        vm.Update(await reader.ReadAsync(repo.Path));
+        vm.Update(await reader.ReadAsync(repo.Path), null);
 
         var view = new ChangesView { DataContext = vm };
         var window = new Window { Content = view };
@@ -64,7 +64,7 @@ public class TabViewTests
         var (repo, reader) = await RepoWithChangesAsync();
         using var _ = repo;
         var vm = new ChangesViewModel(NewPanel());
-        vm.Update(await reader.ReadAsync(repo.Path));
+        vm.Update(await reader.ReadAsync(repo.Path), null);
 
         var view = new ChangesView { DataContext = vm };
         var window = new Window { Content = view };

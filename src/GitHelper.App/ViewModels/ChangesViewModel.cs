@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GitHelper.Core.Actions;
 using GitHelper.Core.Model;
+using GitHelper.Core.Setup;
 
 namespace GitHelper.App.ViewModels;
 
@@ -14,6 +15,7 @@ public sealed partial class ChangesViewModel : ViewModelBase
 {
     private readonly ExplainPanelViewModel _explain;
     private string? _repoPath;
+    private FolderState? _folder;
 
     public ChangesViewModel(ExplainPanelViewModel explain)
     {
@@ -23,6 +25,7 @@ public sealed partial class ChangesViewModel : ViewModelBase
         UnstageAllCommand = new AsyncRelayCommand(() => InvokeAsync("unstage-all", path: null));
         CommitCommand = new AsyncRelayCommand(CommitAsync);
         PushCommand = new AsyncRelayCommand(() => InvokeAsync("push", path: null));
+        CreateGitignoreCommand = new AsyncRelayCommand(CreateGitignoreAsync);
     }
 
     public ObservableCollection<FileChangeRowViewModel> Staged { get; } = new();
@@ -34,6 +37,7 @@ public sealed partial class ChangesViewModel : ViewModelBase
     [ObservableProperty] private bool _hasAnyChanges;
     [ObservableProperty] private bool _hasUnpushedCommits;
     [ObservableProperty] private string _unpushedSummary = string.Empty;
+    [ObservableProperty] private bool _hasGitignoreOffer;
 
     public IAsyncRelayCommand StageAllCommand { get; }
 
@@ -48,9 +52,12 @@ public sealed partial class ChangesViewModel : ViewModelBase
     /// </summary>
     public IAsyncRelayCommand PushCommand { get; }
 
-    public void Update(RepoState state)
+    public IAsyncRelayCommand CreateGitignoreCommand { get; }
+
+    public void Update(RepoState state, FolderState? folder)
     {
         _repoPath = state.RepoRoot;
+        _folder = folder;
 
         Staged.Clear();
         foreach (var change in state.Staged)
@@ -66,6 +73,10 @@ public sealed partial class ChangesViewModel : ViewModelBase
         HasAnyChanges = Staged.Count > 0 || Unstaged.Count > 0;
 
         UpdatePushPrompt(state);
+
+        // Offered only when the folder is known and has none. A repository with a .gitignore
+        // already curated by the user is none of the app's business.
+        HasGitignoreOffer = folder is { HasGitignore: false };
     }
 
     /// <summary>
@@ -140,4 +151,10 @@ public sealed partial class ChangesViewModel : ViewModelBase
             // Commit is Caution, so this only previews; the user confirms from the panel.
             : _explain.ShowAndRunIfUngatedAsync(
                 _repoPath, new ActionRequest("commit", Message: CommitMessage));
+
+    private Task CreateGitignoreAsync()
+        => _folder is null
+            ? Task.CompletedTask
+            // Previews only. The user confirms from the panel, like every other operation.
+            : _explain.ShowSetupAsync(_folder.Path, new SetupRequest(SetupService.CreateGitignore));
 }

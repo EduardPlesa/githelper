@@ -25,6 +25,9 @@ public class ErrorTranslatorTests
     [InlineData("error: The branch 'feature' is not fully merged.", "nowhere else")]
     [InlineData("fatal: 'origin' does not appear to be a git repository", "server")]
     [InlineData("fatal: Not possible to fast-forward, aborting.", "fast-forward")]
+    // Real git output, verbatim: what a beginner hits committing in a freshly `git init`-ed
+    // repository with no global identity set.
+    [InlineData("*** Please tell me who you are.\n\nfatal: unable to auto-detect email address", "who you are")]
     public void Translate_RecognisesKnownFailures(string stdErr, string expectedFragment)
     {
         var translated = ErrorTranslator.Translate(Failure(stdErr))!;

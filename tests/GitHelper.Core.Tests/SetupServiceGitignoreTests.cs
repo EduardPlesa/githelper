@@ -81,6 +81,25 @@ public class SetupServiceGitignoreTests : IDisposable
 
         Assert.False(outcome.Success);
         Assert.NotEmpty(outcome.Blockers);
+        Assert.Contains(outcome.Blockers, b => b.Contains("already", StringComparison.OrdinalIgnoreCase));
         Assert.Equal("my-own-rules\n", File.ReadAllText(Path_(".gitignore")));
+    }
+
+    [Fact]
+    public async Task AWriteFailureThatIsNotAnExistingFileGetsAnHonestMessage()
+    {
+        // The target directory itself does not exist, so the write fails with
+        // DirectoryNotFoundException (an IOException) for a reason that has nothing to do
+        // with a .gitignore already being there. Reusing the "already exists" wording for
+        // this would tell the user something false about their own filesystem.
+        var missing = Path_("missing-subfolder");
+
+        var outcome = await NewService().RunAsync(missing, new SetupRequest("create-gitignore"));
+
+        Assert.False(outcome.Success);
+        Assert.NotEmpty(outcome.Blockers);
+        Assert.DoesNotContain(
+            outcome.Blockers, b => b.Contains("already", StringComparison.OrdinalIgnoreCase));
+        Assert.False(File.Exists(System.IO.Path.Combine(missing, ".gitignore")));
     }
 }

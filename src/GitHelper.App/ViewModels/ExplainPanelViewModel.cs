@@ -56,6 +56,7 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
             () => _setupRequest is null ? RunAsync() : RunSetupAsync(), () => CanRun);
         ToggleTechnicalDetailsCommand = new RelayCommand(
             () => ShowTechnicalDetails = !ShowTechnicalDetails);
+        CancelSetupCommand = new RelayCommand(CancelSetup, () => IsShowingSetup);
     }
 
     [ObservableProperty] private ExplainPanelState _panelState = ExplainPanelState.Empty;
@@ -94,9 +95,25 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     /// </summary>
     public Func<SetupOutcome, CancellationToken, Task>? SetupCompletedAsync { get; set; }
 
+    /// <summary>
+    /// Invoked when the user backs out of an armed setup instead of running it — via
+    /// <see cref="CancelSetupCommand"/>. This viewmodel does not know about the startup
+    /// overlay it shares the scrim with, so the shell uses this to return it to its
+    /// ordinary chooser state.
+    /// </summary>
+    public Action? SetupCancelled { get; set; }
+
     public IAsyncRelayCommand ConfirmCommand { get; }
 
     public IRelayCommand ToggleTechnicalDetailsCommand { get; }
+
+    /// <summary>
+    /// The only way out of an armed setup that is not a successful run. Without this, a
+    /// setup that is blocked or fails traps the user behind the scrim: IsShowingSetup only
+    /// otherwise clears via a successful run reaching OpenRepositoryAsync, or via
+    /// CloseRepositoryAsync, whose button is hidden while no repository is open.
+    /// </summary>
+    public IRelayCommand CancelSetupCommand { get; }
 
     // Compiled bindings cannot compare an enum to a constant, so the conditions the view
     // needs are exposed as booleans rather than pushed into XAML converters.
@@ -279,6 +296,13 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
         return outcome.Success;
     }
 
+    /// <summary>Backs out of an armed setup without running it.</summary>
+    private void CancelSetup()
+    {
+        Clear();
+        SetupCancelled?.Invoke();
+    }
+
     public void Clear()
     {
         _repoPath = null;
@@ -328,6 +352,9 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShouldRunImmediately));
         ConfirmCommand.NotifyCanExecuteChanged();
     }
+
+    partial void OnIsShowingSetupChanged(bool value)
+        => CancelSetupCommand.NotifyCanExecuteChanged();
 
     partial void OnPanelStateChanged(ExplainPanelState value)
         => OnPropertyChanged(nameof(IsEmpty));

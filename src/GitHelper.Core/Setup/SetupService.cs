@@ -108,10 +108,19 @@ public sealed class SetupService(
         }
         catch (IOException)
         {
+            // CreateNew throws IOException both when the file already exists and for
+            // unrelated failures (a locked file, a missing directory, a partial write). Only
+            // the first of those is actually true, so the message must check reality rather
+            // than assume it — this is the one place the app promises never to touch a
+            // user's file, and telling them something false about their own filesystem is
+            // worse than telling them nothing.
             return new SetupOutcome(false, null, null, new[]
             {
-                "There is already a .gitignore here, so nothing was written. "
-                + "Open it and add any lines you want rather than replacing it.",
+                File.Exists(target)
+                    ? "There is already a .gitignore here, so nothing was written. "
+                      + "Open it and add any lines you want rather than replacing it."
+                    : "That file could not be written, so nothing was created. "
+                      + "Check that this app can write to this folder and try again.",
             });
         }
 

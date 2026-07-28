@@ -161,6 +161,18 @@ public sealed partial class StartupViewModel : ViewModelBase
             ? handler(folder.Path, CancellationToken.None)
             : Task.CompletedTask;
 
+    /// <summary>
+    /// Backs out of the init offer and returns to the ordinary chooser. Used when the user
+    /// cancels an armed setup, or when the setup they confirmed was blocked or failed —
+    /// otherwise they would be stuck looking at an offer for a folder whose setup just
+    /// failed, with no route forward except choosing a different folder from scratch.
+    /// </summary>
+    public void ReturnToChooser()
+    {
+        PendingFolder = null;
+        State = StartupState.AwaitingChoice;
+    }
+
     private async Task BrowseAsync()
     {
         var chosen = await _picker.PickFolderAsync("Choose a folder containing a git project");

@@ -16,6 +16,16 @@
 
         <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" />
 
+        <!-- Only reachable while a setup is armed. Placed above the scrollable content so it
+             stays visible regardless of how much the preview grows — this is the only way
+             back when a setup is blocked or fails, since neither the modal-free confirm flow
+             nor the startup scrim otherwise offers one. -->
+        <Button Name="CancelSetupButton"
+                Content="Never mind"
+                Command="{Binding CancelSetupCommand}"
+                IsVisible="{Binding IsShowingSetup}"
+                HorizontalAlignment="Left" />
+
         <!-- The four headings, always in this order. -->
         <TextBlock Text="What this does" FontWeight="Bold" />
         <StackPanel Name="WhatHost" Spacing="8" />

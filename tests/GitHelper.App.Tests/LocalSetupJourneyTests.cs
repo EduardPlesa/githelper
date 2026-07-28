@@ -70,9 +70,12 @@ public class LocalSetupJourneyTests : IDisposable
         Assert.False(main.IsRepositoryOpen);
 
         // 2. Accepting previews init, then confirming runs it and opens the project.
+        // Driven through ConfirmCommand rather than RunSetupAsync directly: that ternary is
+        // the seam that once let a stale setup run behind an action preview, so a journey
+        // test that bypasses it could stay green while that regression came back.
         await main.Startup.StartTrackingCommand.ExecuteAsync(null);
         Assert.Equal("Start tracking this folder", main.Explain.Title);
-        await main.Explain.RunSetupAsync();
+        await main.Explain.ConfirmCommand.ExecuteAsync(null);
 
         Assert.True(main.IsRepositoryOpen);
         Assert.True(Directory.Exists(Path.Combine(_dir, ".git")));
@@ -86,7 +89,7 @@ public class LocalSetupJourneyTests : IDisposable
         // 3. The .gitignore banner is offered, and writing it uses the .NET template.
         Assert.True(main.Changes.HasGitignoreOffer);
         await main.Changes.CreateGitignoreCommand.ExecuteAsync(null);
-        await main.Explain.RunSetupAsync();
+        await main.Explain.ConfirmCommand.ExecuteAsync(null);
         Assert.Contains("obj/", await File.ReadAllTextAsync(Path.Combine(_dir, ".gitignore")));
 
         // 4. Staging and committing work as they do in any other project.
@@ -95,9 +98,50 @@ public class LocalSetupJourneyTests : IDisposable
         await main.Changes.StageAllCommand.ExecuteAsync(null);
         main.Changes.CommitMessage = "first commit";
         await main.Changes.CommitCommand.ExecuteAsync(null);
-        await main.Explain.RunAsync();
+        await main.Explain.ConfirmCommand.ExecuteAsync(null);
 
         Assert.True(main.History.HasCommits);
         Assert.Equal("first commit", main.History.Commits.Single().Subject);
+    }
+
+    [Fact]
+    public async Task ASuccessfulInitLeavesTheNarrationVisibleAfterOpening()
+    {
+        using var main = NewMain();
+        await main.Startup.OpenAsync(_dir);
+        await main.Startup.StartTrackingCommand.ExecuteAsync(null);
+
+        await main.Explain.ConfirmCommand.ExecuteAsync(null);
+
+        // OpenRepositoryAsync clears StatusMessage as part of its normal job, so the
+        // narration must be set after that clear, not before it — otherwise a successful
+        // `git init` tells the user nothing happened.
+        Assert.True(main.IsRepositoryOpen);
+        Assert.False(string.IsNullOrWhiteSpace(main.StatusMessage));
+    }
+
+    [Fact]
+    public async Task CancellingABlockedInitReturnsToTheOrdinaryChooser()
+    {
+        using var main = NewMain();
+        await main.Startup.OpenAsync(_dir);
+        await main.Startup.StartTrackingCommand.ExecuteAsync(null);
+        Assert.True(main.Explain.IsShowingSetup);
+
+        // Something else creates the repository before the user confirms, so the setup
+        // they are about to run is now blocked.
+        await new GitRunner().RunAsync(_dir, new[] { "init", "-q", "-b", "main" });
+        await main.Explain.ConfirmCommand.ExecuteAsync(null);
+        Assert.True(main.Explain.HasBlockers);
+        Assert.True(main.Explain.IsShowingSetup);
+        Assert.False(main.IsRepositoryOpen);
+
+        // Without a way back here, the only escape from behind the scrim is restarting
+        // the app.
+        main.Explain.CancelSetupCommand.Execute(null);
+
+        Assert.False(main.Explain.IsShowingSetup);
+        Assert.Equal(StartupState.AwaitingChoice, main.Startup.State);
+        Assert.Null(main.Startup.PendingFolder);
     }
 }

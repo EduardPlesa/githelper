@@ -81,6 +81,12 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         };
         Explain.SetupCompletedAsync = OnSetupCompletedAsync;
 
+        Explain.SetupCancelled = () =>
+        {
+            _pendingSetupFolder = null;
+            Startup.ReturnToChooser();
+        };
+
         // Hop to the UI thread: the watcher fires on a thread-pool thread, and the refresh
         // rebuilds collections that are bound to controls.
         _watcher.OnChanged = () => _dispatcher.Post(() => _ = RefreshAsync());
@@ -198,6 +204,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Explain.ActionCompletedAsync = null;
         Startup.InitRequestedAsync = null;
         Explain.SetupCompletedAsync = null;
+        Explain.SetupCancelled = null;
         _watcher.Dispose();
         CommandLog.Dispose();
         _disposing.Dispose();
@@ -234,8 +241,6 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     private async Task OnSetupCompletedAsync(SetupOutcome outcome, CancellationToken ct)
     {
-        if (outcome.Narration is { Length: > 0 }) StatusMessage = outcome.Narration;
-
         if (!outcome.Success) return;
 
         if (_repoPath is null)
@@ -243,10 +248,17 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             var folder = _pendingSetupFolder;
             _pendingSetupFolder = null;
             if (folder is not null) await OpenRepositoryAsync(folder, ct);
-            return;
+        }
+        else
+        {
+            await RefreshAsync(ct);
         }
 
-        await RefreshAsync(ct);
+        // Set after opening rather than before: OpenRepositoryAsync clears StatusMessage as
+        // part of its normal job of wiping stale status when a repository is opened, which
+        // would otherwise silently erase this narration in the same synchronous stretch —
+        // leaving a successful `git init` with nothing to show for it.
+        if (outcome.Narration is { Length: > 0 }) StatusMessage = outcome.Narration;
     }
 
     private Task CloseRepositoryAsync()

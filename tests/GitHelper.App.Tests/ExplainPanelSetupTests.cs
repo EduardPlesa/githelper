@@ -112,6 +112,33 @@ public class ExplainPanelSetupTests : IDisposable
     }
 
     [Fact]
+    public void CancelSetupCommandCannotRunWithNoArmedSetup()
+    {
+        var panel = NewPanel();
+
+        Assert.False(panel.CancelSetupCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task CancelSetupClearsThePanelAndNotifiesTheShell()
+    {
+        // A blocked or failed setup has no other route back except this command — the
+        // shell is notified via SetupCancelled so it can return the startup overlay to its
+        // ordinary chooser, since this viewmodel does not know that overlay exists.
+        var panel = NewPanel();
+        await panel.ShowSetupAsync(_dir, new SetupRequest("init-repository"));
+        var cancelled = false;
+        panel.SetupCancelled = () => cancelled = true;
+
+        Assert.True(panel.CancelSetupCommand.CanExecute(null));
+        panel.CancelSetupCommand.Execute(null);
+
+        Assert.True(cancelled);
+        Assert.False(panel.IsShowingSetup);
+        Assert.Equal(ExplainPanelState.Empty, panel.PanelState);
+    }
+
+    [Fact]
     public async Task ClearResetsTheFileContents()
     {
         File.WriteAllText(Path.Combine(_dir, "App.csproj"), "<Project />");
@@ -122,5 +149,8 @@ public class ExplainPanelSetupTests : IDisposable
 
         Assert.False(panel.HasFileContents);
         Assert.Null(panel.FileContents);
+        // The scrim's setup card visibility is driven entirely by this property, so nothing
+        // else pins it back to false on Clear().
+        Assert.False(panel.IsShowingSetup);
     }
 }

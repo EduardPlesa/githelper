@@ -20,11 +20,22 @@
         <TextBlock Text="What this does" FontWeight="Bold" />
         <StackPanel Name="WhatHost" Spacing="8" />
 
-        <TextBlock Text="The command" FontWeight="Bold" />
-        <Border Padding="8" CornerRadius="4" Background="#20808080">
+        <TextBlock Text="The command" FontWeight="Bold" IsVisible="{Binding HasCommandLine}" />
+        <Border Padding="8" CornerRadius="4" Background="#20808080"
+                IsVisible="{Binding HasCommandLine}">
           <TextBlock Text="{Binding CommandLine}"
                      FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
                      TextWrapping="Wrap" />
+        </Border>
+
+        <!-- Some setup operations write a file rather than running a command. Showing the
+             file is the honest equivalent of showing the command. -->
+        <TextBlock Text="The file" FontWeight="Bold" IsVisible="{Binding HasFileContents}" />
+        <Border Padding="8" CornerRadius="4" Background="#20808080"
+                IsVisible="{Binding HasFileContents}">
+          <SelectableTextBlock Text="{Binding FileContents}"
+                               FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                               TextWrapping="Wrap" />
         </Border>
 
         <TextBlock Text="What could go wrong" FontWeight="Bold" />

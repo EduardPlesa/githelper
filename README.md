@@ -6,8 +6,8 @@ Every action explains what it will do — in plain English — *before* it runs,
 `git` command it is about to execute, warns about consequences in concrete terms, and tells you
 how to undo it afterwards.
 
-It works on your **real repositories**, not a simulator. You learn on your own work, with
-guardrails.
+It works on your **real repositories**, not a simulator — and it will start one for you if the
+folder isn't a repository yet. You learn on your own work, with guardrails.
 
 ![The explain panel: staging a file](docs/images/explain-panel.png)
 
@@ -68,6 +68,8 @@ when git did something unexpected.
 
 ## Features
 
+- **Starts the repository for you** — pick a folder that isn't one yet and the app offers `git init`, explained like everything else, instead of dead-ending on an error.
+- **Offers a `.gitignore`** chosen for the kind of project it finds, shown in full and commented line by line before it's written. It will never overwrite one you already have.
 - **Three-pane shell** — file/history/branch lists, the explain panel, and a permanent command log.
 - **A command log that teaches the CLI** — every `git` invocation the app makes, with exit codes, in pasteable form. Multi-word arguments come out correctly quoted.
 - **Plain-English error translation** — with the raw git output always one click away, never hidden.
@@ -76,6 +78,41 @@ when git did something unexpected.
 - **Recent projects, light/dark/system theme**, and your per-action preferences, all persisted.
 - **Identity setup** — if `user.name` / `user.email` aren't configured, the app offers to set them, rather than letting your first commit fail with a wall of git configuration advice.
 - **Refuses to pretend** — if git isn't installed, it says so plainly instead of failing mysteriously later.
+
+## Starting a project
+
+Most git GUIs begin at "open an existing repository", which is not where a project begins.
+GitHelper starts one step earlier.
+
+Pick a folder that isn't a repository and it says so, tells you what it found there, and offers
+to fix it — in the same panel, with the same four headings, as every other operation:
+
+> **Not a git project yet**
+> I found 2 files here. Tracking lets you save versions of them.
+> Git keeps its history in a hidden `.git` folder, and there is not one here yet.
+> `[ Start tracking this folder ]`  `[ Choose a different folder ]`
+
+Once the repository exists, the Changes tab offers a `.gitignore` picked from what the project
+looks like — .NET, Node, Python, Java, or a general-purpose fallback. Five short templates, every
+rule commented, because the app has to be able to *explain* the file rather than just drop it in.
+
+![Setting up a .gitignore: the panel shows the file, not a command](docs/images/gitignore-setup.png)
+
+These two are **setup operations**, and they are deliberately not in the action table below:
+
+| | Why it isn't an ordinary action |
+|---|---|
+| **Start tracking this folder** | Runs before a repository exists, so there is no repository state to describe it against |
+| **Set up a .gitignore** | **Isn't a git command at all** — it writes a file |
+
+That second one is why the panel's third heading switches from **The command** to **The file**,
+showing the exact contents that are about to be written. No fake command is invented to fill the
+slot, and no heading is quietly dropped.
+
+**Your `.gitignore` is never overwritten.** If one already exists the offer doesn't appear, and
+the write itself uses an atomic create-new — so even a file that appears in the half-second
+between the check and the write is safe. Losing a file you curated isn't undoable by anything the
+app could show you.
 
 ## The action set
 
@@ -132,6 +169,13 @@ code, no new branches in the flow.
 offline, no API key, no per-click latency or cost — and reviewable for correctness, which matters
 a great deal when the thing you're doing is teaching.
 
+**Setup operations get their own small service, on purpose.** The action pipeline reads a
+`RepoState` before it can describe anything — and before `git init` there is no repository to
+read. Rather than make `RepoState` nullable across all twelve preconditions and every consumer,
+a deliberately small `SetupService` sits beside it over a `FolderState`: what can be known about
+a folder *without* git. Exactly two operations live there, and one panel drives both services, so
+the user never sees the seam.
+
 ### Some details worth calling out
 
 - **Every git call goes through one choke point**, using `ProcessStartInfo.ArgumentList` — an argv
@@ -146,7 +190,7 @@ a great deal when the thing you're doing is teaching.
 
 ## Testing
 
-**342 tests**, all headless.
+**415 tests**, all headless.
 
 Viewmodel and engine tests drive **real git** against throwaway repositories in the temp
 directory — not mocks — so the parsers are tested against the git that's actually installed. View
@@ -199,7 +243,8 @@ are *declined* rather than deferred:
 ```
 src/
   GitHelper.Core/       engine — git, parsing, actions, errors
-  GitHelper.Content/    authored explanations + glossary (13 actions, 8 terms)
+  GitHelper.Content/    authored explanations + glossary + .gitignore templates
+                        (13 actions, 2 setup ops, 9 terms, 5 templates)
   GitHelper.App/        Avalonia UI
 tests/
   GitHelper.Core.Tests/ engine tests against real git

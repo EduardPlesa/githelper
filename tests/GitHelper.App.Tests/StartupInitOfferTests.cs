@@ -50,10 +50,15 @@ public class StartupInitOfferTests : IDisposable
         await startup.OpenAsync(_dir);
         Assert.Contains("empty", startup.PendingFolderSummary, StringComparison.OrdinalIgnoreCase);
 
+        // Exactly one file gets singular wording, so the plural branch cannot swallow it.
         File.WriteAllText(Path.Combine(_dir, "a.txt"), "x");
+        await startup.OpenAsync(_dir);
+        Assert.Contains("1 file", startup.PendingFolderSummary);
+        Assert.DoesNotContain("1 files", startup.PendingFolderSummary);
+
         File.WriteAllText(Path.Combine(_dir, "b.txt"), "x");
         await startup.OpenAsync(_dir);
-        Assert.Contains("2", startup.PendingFolderSummary);
+        Assert.Contains("2 files", startup.PendingFolderSummary);
     }
 
     [Fact]

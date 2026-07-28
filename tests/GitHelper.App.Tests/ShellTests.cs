@@ -51,8 +51,8 @@ public class StartupViewModelFlagTests
     [Fact]
     public async Task OpeningANonRepositoryFolderOffersToStartTrackingInsteadOfErroring()
     {
-        // A non-repository folder used to set HasError and dead-end. It is now the entry
-        // point for `git init`, so no error is raised — the offer flag is instead.
+        // A non-repository folder used to dead-end with an error message. It is now the entry
+        // point for `git init`, so the offer flag is raised instead.
         var startup = NewStartup(out _);
         var dir = Path.Combine(Path.GetTempPath(), "githelper-notarepo-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -61,8 +61,8 @@ public class StartupViewModelFlagTests
         {
             await startup.OpenAsync(dir);
 
-            Assert.False(startup.HasError);
             Assert.True(startup.IsOfferingInit);
+            Assert.NotNull(startup.PendingFolder);
         }
         finally
         {

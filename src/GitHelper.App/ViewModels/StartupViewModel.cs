@@ -87,8 +87,6 @@ public sealed partial class StartupViewModel : ViewModelBase
 
     public bool IsOfferingInit => State == StartupState.FolderIsNotARepository;
 
-    public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
-
     public bool HasRecents => Recents.Count > 0;
 
     /// <summary>
@@ -140,8 +138,6 @@ public sealed partial class StartupViewModel : ViewModelBase
 
     public async Task OpenAsync(string path, CancellationToken ct = default)
     {
-        ErrorMessage = null;
-
         var root = await _reader.FindRepoRootAsync(path, ct);
         if (root is null)
         {
@@ -216,8 +212,6 @@ public sealed partial class StartupViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsGitMissing));
         OnPropertyChanged(nameof(IsOfferingInit));
     }
-
-    partial void OnErrorMessageChanged(string? value) => OnPropertyChanged(nameof(HasError));
 
     partial void OnPendingFolderChanged(FolderState? value)
     {

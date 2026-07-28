@@ -109,7 +109,7 @@ public class StartupViewModelTests
 
         Assert.NotNull(opened);
         Assert.Equal(Path.GetFileName(repo.Path), Path.GetFileName(opened!.TrimEnd('/', '\\')));
-        Assert.Null(f.Startup.ErrorMessage);
+        Assert.False(f.Startup.IsOfferingInit);
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public class StartupViewModelTests
         await f.Startup.BrowseCommand.ExecuteAsync(null);
 
         Assert.False(raised);
-        Assert.Null(f.Startup.ErrorMessage);
+        Assert.False(f.Startup.IsOfferingInit);
     }
 
     [Fact]

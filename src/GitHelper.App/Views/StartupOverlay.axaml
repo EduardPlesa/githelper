@@ -46,10 +46,6 @@
                 Command="{Binding BrowseCommand}"
                 HorizontalAlignment="Left" />
 
-        <TextBlock IsVisible="{Binding HasError}"
-                   Text="{Binding ErrorMessage}"
-                   TextWrapping="Wrap" />
-
         <StackPanel Spacing="6" IsVisible="{Binding HasRecents}">
           <TextBlock Text="Recent projects" FontWeight="Bold" />
           <ItemsControl Name="RecentsHost" ItemsSource="{Binding Recents}">

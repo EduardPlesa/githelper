@@ -115,7 +115,9 @@ Add to `tests/GitHelper.Core.Tests/PreconditionTests.cs`, at the end of the clas
     [Fact]
     public void RequiresValidRemoteUrl_RejectsSomethingThatIsNotAnAddressAtAll()
     {
-        var result = new RequiresValidRemoteUrl().Evaluate(State(hasRemote: false), UrlRequest("my project"));
+        // No space in the input: whitespace is rejected by its own rule, with its own
+        // message, one check earlier.
+        var result = new RequiresValidRemoteUrl().Evaluate(State(hasRemote: false), UrlRequest("my-project"));
 
         Assert.False(result.Satisfied);
         Assert.Contains("https://", result.Message!, StringComparison.Ordinal);

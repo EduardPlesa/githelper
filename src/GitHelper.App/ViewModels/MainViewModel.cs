@@ -247,7 +247,13 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         {
             var folder = _pendingSetupFolder;
             _pendingSetupFolder = null;
-            if (folder is not null) await OpenRepositoryAsync(folder, ct);
+
+            // Routed through Startup.OpenAsync rather than straight to OpenRepositoryAsync,
+            // because that is the only place a repository gets written to the recents list.
+            // Going direct opened the project but left it missing from Recent projects on the
+            // next launch — the one project the user had just made. It also re-resolves the
+            // repository root rather than trusting the folder we happened to init in.
+            if (folder is not null) await Startup.OpenAsync(folder, ct);
         }
         else
         {

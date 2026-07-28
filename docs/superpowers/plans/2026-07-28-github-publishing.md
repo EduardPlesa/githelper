@@ -618,7 +618,7 @@ Run:
 dotnet test tests/GitHelper.Core.Tests --filter "FullyQualifiedName~ErrorTranslatorTests"
 ```
 
-Expected: three failures. The first two report the generic non-fast-forward wording; the third reports `IsUnderstood` false.
+Expected: three failures — the two `(fetch first)` tests report the generic non-fast-forward wording, and the missing-repository one reports `IsUnderstood` false. `Translate_StillBlamesTheOtherPersonForAnOrdinaryNonFastForward` passes from the start: it guards existing behaviour against the new rule being ordered wrongly.
 
 - [ ] **Step 3: Add the two rules and reword the third**
 

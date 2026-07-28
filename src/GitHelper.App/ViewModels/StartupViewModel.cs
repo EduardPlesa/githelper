@@ -59,7 +59,6 @@ public sealed partial class StartupViewModel : ViewModelBase
     [ObservableProperty] private StartupState _state = StartupState.Checking;
     [ObservableProperty] private string? _blockingMessage;
     [ObservableProperty] private string? _blockingFixHint;
-    [ObservableProperty] private string? _errorMessage;
     [ObservableProperty] private bool _identityPromptNeeded;
     [ObservableProperty] private string _identityName = string.Empty;
     [ObservableProperty] private string _identityEmail = string.Empty;

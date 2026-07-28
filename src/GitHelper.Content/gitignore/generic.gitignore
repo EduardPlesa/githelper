@@ -1,0 +1,22 @@
+# Files git should leave alone.
+# Anything listed here stays on your computer and is never committed.
+
+# Secrets. Never commit these -- anyone who can see the repository can read them.
+.env
+.env.*
+*.pem
+*.key
+
+# Junk your operating system leaves behind.
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editor and tool settings that are yours, not the project's.
+.vscode/
+.idea/
+*.swp
+
+# Logs and temporary files.
+*.log
+tmp/

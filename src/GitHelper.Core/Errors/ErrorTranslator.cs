@@ -85,6 +85,17 @@ public static class ErrorTranslator
                 "Combining histories is not supported in this version.",
             }),
 
+        new("please tell me who you are",
+            "Git does not know who you are yet",
+            "Every commit records an author's name and email, and git has not been told yours. "
+            + "This is a one-time setup, not an account — no password is involved.",
+            new[]
+            {
+                "Set your name and email for git, then commit again: "
+                + "git config --global user.name \"Your Name\" and "
+                + "git config --global user.email \"you@example.com\".",
+            }),
+
         new("nothing to commit",
             "There is nothing staged to save",
             "Editing a file is not the same as choosing it. You pick which changes go into a "

@@ -3,7 +3,9 @@ using CommunityToolkit.Mvvm.Input;
 using GitHelper.App.Infrastructure;
 using GitHelper.App.Settings;
 using GitHelper.Core.Actions;
+using GitHelper.Core.Model;
 using GitHelper.Core.Repo;
+using GitHelper.Core.Setup;
 
 namespace GitHelper.App.ViewModels;
 
@@ -26,11 +28,17 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     private readonly ThemeController _themeController;
     private readonly ISettingsStore _settings;
     private readonly IUiDispatcher _dispatcher;
+    private readonly FolderInspector _inspector;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly CancellationTokenSource _disposing = new();
     private int _refreshesInFlight;
 
     private string? _repoPath;
+
+    // Captured when a setup operation is armed and consumed when it completes, rather than
+    // re-reading Startup.PendingFolder at completion time — the setup ran against this exact
+    // path, whereas PendingFolder could have moved on (or been cleared) in the meantime.
+    private string? _pendingSetupFolder;
 
     public MainViewModel(
         RepoStateReader reader,
@@ -43,13 +51,15 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         RepoWatcher watcher,
         ThemeController themeController,
         ISettingsStore settings,
-        IUiDispatcher dispatcher)
+        IUiDispatcher dispatcher,
+        FolderInspector inspector)
     {
         _reader = reader;
         _watcher = watcher;
         _themeController = themeController;
         _settings = settings;
         _dispatcher = dispatcher;
+        _inspector = inspector;
 
         Startup = startup;
         Explain = explain;
@@ -63,6 +73,19 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
         Startup.RepositoryOpenedAsync = (repoRoot, ct) => OpenRepositoryAsync(repoRoot, ct);
         Explain.ActionCompletedAsync = OnActionCompletedAsync;
+
+        Startup.InitRequestedAsync = (folderPath, ct) =>
+        {
+            _pendingSetupFolder = folderPath;
+            return Explain.ShowSetupAsync(folderPath, new SetupRequest(SetupService.InitRepository), ct);
+        };
+        Explain.SetupCompletedAsync = OnSetupCompletedAsync;
+
+        Explain.SetupCancelled = () =>
+        {
+            _pendingSetupFolder = null;
+            Startup.ReturnToChooser();
+        };
 
         // Hop to the UI thread: the watcher fires on a thread-pool thread, and the refresh
         // rebuilds collections that are bound to controls.
@@ -158,7 +181,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
                 ? "not on a branch (detached HEAD)"
                 : state.Branch ?? "no branch";
 
-            Changes.Update(state);
+            Changes.Update(state, _inspector.Inspect(state.RepoRoot));
             History.Update(state);
             Branches.Update(state);
         }
@@ -179,6 +202,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
         Startup.RepositoryOpenedAsync = null;
         Explain.ActionCompletedAsync = null;
+        Startup.InitRequestedAsync = null;
+        Explain.SetupCompletedAsync = null;
+        Explain.SetupCancelled = null;
         _watcher.Dispose();
         CommandLog.Dispose();
         _disposing.Dispose();
@@ -207,6 +233,32 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Branches.OnActionCompleted(outcome);
 
         await RefreshAsync(ct);
+    }
+
+    /// <summary>
+    /// A folder that has just become a repository is opened straight away, so the user lands
+    /// in the normal view rather than being sent back to the startup screen to find it again.
+    /// </summary>
+    private async Task OnSetupCompletedAsync(SetupOutcome outcome, CancellationToken ct)
+    {
+        if (!outcome.Success) return;
+
+        if (_repoPath is null)
+        {
+            var folder = _pendingSetupFolder;
+            _pendingSetupFolder = null;
+            if (folder is not null) await OpenRepositoryAsync(folder, ct);
+        }
+        else
+        {
+            await RefreshAsync(ct);
+        }
+
+        // Set after opening rather than before: OpenRepositoryAsync clears StatusMessage as
+        // part of its normal job of wiping stale status when a repository is opened, which
+        // would otherwise silently erase this narration in the same synchronous stretch —
+        // leaving a successful `git init` with nothing to show for it.
+        if (outcome.Narration is { Length: > 0 }) StatusMessage = outcome.Narration;
     }
 
     private Task CloseRepositoryAsync()

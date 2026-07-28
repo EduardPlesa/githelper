@@ -5,6 +5,7 @@ using GitHelper.App.Settings;
 using GitHelper.Core.Actions;
 using GitHelper.Core.Content;
 using GitHelper.Core.Errors;
+using GitHelper.Core.Setup;
 
 namespace GitHelper.App.ViewModels;
 
@@ -31,28 +32,37 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     private readonly ActionService _actions;
     private readonly IConfirmationDialog _confirmations;
     private readonly ISettingsStore _settings;
+    private readonly SetupService? _setup;
 
     private string? _repoPath;
     private ActionRequest? _request;
     private IReadOnlyDictionary<string, string> _slots = new Dictionary<string, string>();
 
+    private string? _folderPath;
+    private SetupRequest? _setupRequest;
+
     public ExplainPanelViewModel(
         ActionService actions,
         IConfirmationDialog confirmations,
-        ISettingsStore settings)
+        ISettingsStore settings,
+        SetupService? setup = null)
     {
         _actions = actions;
         _confirmations = confirmations;
         _settings = settings;
+        _setup = setup;
 
-        ConfirmCommand = new AsyncRelayCommand(() => RunAsync(), () => CanRun);
+        ConfirmCommand = new AsyncRelayCommand(
+            () => _setupRequest is null ? RunAsync() : RunSetupAsync(), () => CanRun);
         ToggleTechnicalDetailsCommand = new RelayCommand(
             () => ShowTechnicalDetails = !ShowTechnicalDetails);
+        CancelSetupCommand = new RelayCommand(CancelSetup, () => IsShowingSetup);
     }
 
     [ObservableProperty] private ExplainPanelState _panelState = ExplainPanelState.Empty;
     [ObservableProperty] private string _title = string.Empty;
     [ObservableProperty] private string _commandLine = string.Empty;
+    [ObservableProperty] private string? _fileContents;
     [ObservableProperty] private Danger _dangerLevel;
     [ObservableProperty] private IReadOnlyList<ContentBlock> _whatBlocks = NoBlocks;
     [ObservableProperty] private IReadOnlyList<ContentBlock> _risksBlocks = NoBlocks;
@@ -66,14 +76,44 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     [ObservableProperty] private bool _suppressExplanationForThisAction;
 
     /// <summary>
+    /// True while a setup operation (e.g. `git init`) is armed and its preview is showing.
+    /// The startup scrim uses this to swap its overlay for this same panel, so the user can
+    /// read the explanation and hit Confirm without the scrim having to come down first —
+    /// which it cannot, since IsRepositoryOpen only flips once the setup has already run.
+    /// </summary>
+    [ObservableProperty] private bool _isShowingSetup;
+
+    /// <summary>
     /// Invoked after a run so the shell can refresh repository state, and awaited so the
     /// refresh completes before RunAsync returns. A plain event could not be awaited.
     /// </summary>
     public Func<ActionOutcome, CancellationToken, Task>? ActionCompletedAsync { get; set; }
 
+    /// <summary>
+    /// Invoked after a setup operation, and awaited. The shell uses it to open a folder that
+    /// has just become a repository.
+    /// </summary>
+    public Func<SetupOutcome, CancellationToken, Task>? SetupCompletedAsync { get; set; }
+
+    /// <summary>
+    /// Invoked when the user backs out of an armed setup instead of running it — via
+    /// <see cref="CancelSetupCommand"/>. This viewmodel does not know about the startup
+    /// overlay it shares the scrim with, so the shell uses this to return it to its
+    /// ordinary chooser state.
+    /// </summary>
+    public Action? SetupCancelled { get; set; }
+
     public IAsyncRelayCommand ConfirmCommand { get; }
 
     public IRelayCommand ToggleTechnicalDetailsCommand { get; }
+
+    /// <summary>
+    /// The only way out of an armed setup that is not a successful run. Without this, a
+    /// setup that is blocked or fails traps the user behind the scrim: IsShowingSetup only
+    /// otherwise clears via a successful run reaching OpenRepositoryAsync, or via
+    /// CloseRepositoryAsync, whose button is hidden while no repository is open.
+    /// </summary>
+    public IRelayCommand CancelSetupCommand { get; }
 
     // Compiled bindings cannot compare an enum to a constant, so the conditions the view
     // needs are exposed as booleans rather than pushed into XAML converters.
@@ -84,6 +124,14 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     public bool HasNarration => !string.IsNullOrEmpty(Narration);
 
     public bool HasError => Error is not null;
+
+    /// <summary>
+    /// True when this operation writes a file instead of running a command — the panel shows
+    /// "The file" in place of "The command" rather than inventing a command that does not exist.
+    /// </summary>
+    public bool HasFileContents => !string.IsNullOrEmpty(FileContents);
+
+    public bool HasCommandLine => !string.IsNullOrEmpty(CommandLine);
 
     /// <summary>
     /// True when the confirmation belongs inline in the panel. Destructive actions are
@@ -106,12 +154,20 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     {
         var preview = await _actions.PreviewAsync(repoPath, request, ct);
 
+        // Arming the action path disarms the setup path, so the two can never both fire:
+        // otherwise a stale _setupRequest from an earlier setup preview would make
+        // ConfirmCommand run that setup instead of the action just shown to the user.
+        _folderPath = null;
+        _setupRequest = null;
+        IsShowingSetup = false;
+
         _repoPath = repoPath;
         _request = request;
         _slots = preview.Slots;
 
         Title = preview.Action.Title;
         CommandLine = preview.CommandLine;
+        FileContents = null;
         DangerLevel = preview.Danger;
         // Fully qualified: this file already imports GitHelper.Core.Content, so a bare
         // "Content.SlotResolver" would be ambiguous between the two Content namespaces.
@@ -177,14 +233,89 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
         if (ShouldRunImmediately) await RunAsync(ct);
     }
 
+    /// <summary>Previews a setup operation. Runs nothing.</summary>
+    public async Task ShowSetupAsync(
+        string folderPath, SetupRequest request, CancellationToken ct = default)
+    {
+        if (_setup is null)
+            throw new InvalidOperationException("This panel was built without a SetupService.");
+
+        var preview = await _setup.PreviewAsync(folderPath, request, ct);
+
+        // Arming the setup path disarms the action path, so the two can never both fire.
+        _repoPath = null;
+        _request = null;
+        _slots = new Dictionary<string, string>();
+
+        _folderPath = folderPath;
+        _setupRequest = request;
+        IsShowingSetup = true;
+
+        Title = preview.Title;
+        CommandLine = preview.CommandLine ?? string.Empty;
+        FileContents = preview.FileContents;
+        DangerLevel = Danger.Safe;
+        WhatBlocks = preview.Explanation.What;
+        RisksBlocks = preview.Explanation.Risks;
+        UndoBlocks = preview.Explanation.Undo;
+        Blockers = preview.Blockers.ToArray();
+        CanRun = preview.CanRun;
+        RequiresConfirmation = true;
+
+        Narration = null;
+        Error = null;
+        ShowTechnicalDetails = false;
+        SuppressExplanationForThisAction = false;
+        PanelState = ExplainPanelState.Explaining;
+    }
+
+    /// <summary>Runs the previewed setup operation. False when nothing ran.</summary>
+    public async Task<bool> RunSetupAsync(CancellationToken ct = default)
+    {
+        if (_setup is null || _folderPath is null || _setupRequest is null || !CanRun) return false;
+
+        var outcome = await _setup.RunAsync(_folderPath, _setupRequest, ct);
+
+        if (outcome.Success)
+        {
+            Narration = outcome.Narration;
+            Error = null;
+            PanelState = ExplainPanelState.Explaining;
+        }
+        else
+        {
+            Narration = null;
+            Error = outcome.Error;
+            Blockers = outcome.Blockers.ToArray();
+            PanelState = outcome.Error is null
+                ? ExplainPanelState.Explaining
+                : ExplainPanelState.Error;
+        }
+
+        if (SetupCompletedAsync is { } handler) await handler(outcome, ct);
+        return outcome.Success;
+    }
+
+    /// <summary>Backs out of an armed setup without running it.</summary>
+    private void CancelSetup()
+    {
+        Clear();
+        SetupCancelled?.Invoke();
+    }
+
     public void Clear()
     {
         _repoPath = null;
         _request = null;
         _slots = new Dictionary<string, string>();
 
+        _folderPath = null;
+        _setupRequest = null;
+        IsShowingSetup = false;
+
         Title = string.Empty;
         CommandLine = string.Empty;
+        FileContents = null;
         WhatBlocks = NoBlocks;
         RisksBlocks = NoBlocks;
         UndoBlocks = NoBlocks;
@@ -222,6 +353,9 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
         ConfirmCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnIsShowingSetupChanged(bool value)
+        => CancelSetupCommand.NotifyCanExecuteChanged();
+
     partial void OnPanelStateChanged(ExplainPanelState value)
         => OnPropertyChanged(nameof(IsEmpty));
 
@@ -233,6 +367,12 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
 
     partial void OnErrorChanged(TranslatedError? value)
         => OnPropertyChanged(nameof(HasError));
+
+    partial void OnFileContentsChanged(string? value)
+        => OnPropertyChanged(nameof(HasFileContents));
+
+    partial void OnCommandLineChanged(string value)
+        => OnPropertyChanged(nameof(HasCommandLine));
 
     partial void OnRequiresConfirmationChanged(bool value)
     {

@@ -1,0 +1,27 @@
+# Files git should leave alone, for a Python project.
+
+# Compiled bytecode, regenerated automatically.
+__pycache__/
+*.py[cod]
+
+# Virtual environments. Large, and specific to your machine.
+.venv/
+venv/
+env/
+
+# Secrets. Never commit these.
+.env
+.env.*
+
+# Packaging and test output.
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.coverage
+
+# Editor settings and operating system junk.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

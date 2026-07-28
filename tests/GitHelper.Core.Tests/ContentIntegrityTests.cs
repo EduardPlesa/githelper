@@ -11,6 +11,9 @@ public class ContentIntegrityTests
 {
     private static readonly ContentLibrary Library = ContentLibrary.Load();
 
+    private static IEnumerable<ExplanationDocument> AllDocuments()
+        => Library.Actions.Values.Concat(Library.Setup.Values);
+
     private static IEnumerable<InlineSpan> AllSpans(ExplanationDocument document)
         => Spans(document.What).Concat(Spans(document.Risks)).Concat(Spans(document.Undo));
 
@@ -55,7 +58,7 @@ public class ContentIntegrityTests
     [Fact]
     public void EveryDeclaredTermResolvesToAGlossaryFile()
     {
-        var unresolved = Library.Actions.Values
+        var unresolved = AllDocuments()
             .SelectMany(d => d.Terms.Select(t => (Document: d.Id, Term: t)))
             .Where(x => !Library.Terms.ContainsKey(x.Term))
             .ToList();
@@ -66,7 +69,7 @@ public class ContentIntegrityTests
     [Fact]
     public void EveryInlineTermReferenceResolvesToAGlossaryFile()
     {
-        var unresolved = Library.Actions.Values
+        var unresolved = AllDocuments()
             .SelectMany(d => AllSpans(d).OfType<TermSpan>().Select(s => (Document: d.Id, s.TermId)))
             .Where(x => !Library.Terms.ContainsKey(x.TermId))
             .ToList();
@@ -77,7 +80,7 @@ public class ContentIntegrityTests
     [Fact]
     public void EverySlotIsInTheKnownVocabulary()
     {
-        var unknown = Library.Actions.Values
+        var unknown = AllDocuments()
             .SelectMany(d => AllSpans(d).OfType<SlotSpan>().Select(s => (Document: d.Id, s.SlotName)))
             .Where(x => !SlotBinder.KnownSlots.Contains(x.SlotName))
             .ToList();
@@ -130,7 +133,7 @@ public class ContentIntegrityTests
     [Fact]
     public void EveryGlossaryTermIsActuallyReferencedSomewhere()
     {
-        var referenced = Library.Actions.Values
+        var referenced = AllDocuments()
             .SelectMany(d => d.Terms.Concat(AllSpans(d).OfType<TermSpan>().Select(s => s.TermId)))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 

@@ -16,15 +16,36 @@
 
         <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" />
 
+        <!-- Only reachable while a setup is armed. Placed above the scrollable content so it
+             stays visible regardless of how much the preview grows — this is the only way
+             back when a setup is blocked or fails, since neither the modal-free confirm flow
+             nor the startup scrim otherwise offers one. -->
+        <Button Name="CancelSetupButton"
+                Content="Never mind"
+                Command="{Binding CancelSetupCommand}"
+                IsVisible="{Binding IsShowingSetup}"
+                HorizontalAlignment="Left" />
+
         <!-- The four headings, always in this order. -->
         <TextBlock Text="What this does" FontWeight="Bold" />
         <StackPanel Name="WhatHost" Spacing="8" />
 
-        <TextBlock Text="The command" FontWeight="Bold" />
-        <Border Padding="8" CornerRadius="4" Background="#20808080">
+        <TextBlock Text="The command" FontWeight="Bold" IsVisible="{Binding HasCommandLine}" />
+        <Border Padding="8" CornerRadius="4" Background="#20808080"
+                IsVisible="{Binding HasCommandLine}">
           <TextBlock Text="{Binding CommandLine}"
                      FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
                      TextWrapping="Wrap" />
+        </Border>
+
+        <!-- Some setup operations write a file rather than running a command. Showing the
+             file is the honest equivalent of showing the command. -->
+        <TextBlock Text="The file" FontWeight="Bold" IsVisible="{Binding HasFileContents}" />
+        <Border Padding="8" CornerRadius="4" Background="#20808080"
+                IsVisible="{Binding HasFileContents}">
+          <SelectableTextBlock Text="{Binding FileContents}"
+                               FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                               TextWrapping="Wrap" />
         </Border>
 
         <TextBlock Text="What could go wrong" FontWeight="Bold" />
@@ -51,7 +72,8 @@
         <StackPanel Spacing="6" IsVisible="{Binding RequiresInlineConfirmation}">
           <CheckBox Content="Stop explaining this one"
                     IsChecked="{Binding SuppressExplanationForThisAction}" />
-          <Button Content="{Binding Title, StringFormat='Confirm — {0}'}"
+          <Button Name="ConfirmButton"
+                  Content="{Binding Title, StringFormat='Confirm — {0}'}"
                   Command="{Binding ConfirmCommand}"
                   HorizontalAlignment="Stretch" />
         </StackPanel>

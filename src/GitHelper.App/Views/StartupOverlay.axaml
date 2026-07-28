@@ -23,6 +23,20 @@
         <TextBlock Text="{Binding BlockingFixHint}" TextWrapping="Wrap" Opacity="0.8" />
       </StackPanel>
 
+      <!-- The folder is not a repository yet. Formerly a dead-end error; now the entry point. -->
+      <StackPanel Spacing="10" IsVisible="{Binding IsOfferingInit}">
+        <TextBlock Text="Not a git project yet" FontWeight="Bold" />
+        <TextBlock Text="{Binding PendingFolderSummary}" TextWrapping="Wrap" />
+        <TextBlock TextWrapping="Wrap" Opacity="0.8"
+                   Text="Git keeps its history in a hidden .git folder, and there is not one here yet." />
+        <Button Content="Start tracking this folder"
+                Command="{Binding StartTrackingCommand}"
+                HorizontalAlignment="Left" />
+        <Button Content="Choose a different folder"
+                Command="{Binding BrowseCommand}"
+                HorizontalAlignment="Left" />
+      </StackPanel>
+
       <!-- Normal case: browse, or pick something recent. -->
       <StackPanel Spacing="14" IsVisible="{Binding IsAwaitingChoice}">
 
@@ -31,10 +45,6 @@
         <Button Content="Open folder…"
                 Command="{Binding BrowseCommand}"
                 HorizontalAlignment="Left" />
-
-        <TextBlock IsVisible="{Binding HasError}"
-                   Text="{Binding ErrorMessage}"
-                   TextWrapping="Wrap" />
 
         <StackPanel Spacing="6" IsVisible="{Binding HasRecents}">
           <TextBlock Text="Recent projects" FontWeight="Bold" />

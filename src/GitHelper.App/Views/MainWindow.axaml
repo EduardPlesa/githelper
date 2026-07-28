@@ -67,10 +67,31 @@
 
     </Grid>
 
-    <!-- Startup scrim over the chrome. IsVisible binds to MainViewModel; the overlay
-         inside re-points its own DataContext at Startup. -->
+    <!-- Startup scrim over the chrome. IsVisible binds to MainViewModel; the overlay inside
+         re-points its own DataContext at Startup. While a setup operation (e.g. `git init`)
+         is armed, the overlay is swapped for the very same ExplainPanelView used behind the
+         chrome, bound to Explain — the one and only explain panel — so the Confirm button is
+         reachable. Without this, Confirm lives behind this same scrim and IsRepositoryOpen
+         cannot flip until Confirm has already run: a chicken-and-egg the user could never
+         get past. -->
     <Panel Name="StartupScrim" IsVisible="{Binding !IsRepositoryOpen}" Background="#B0000000">
-      <views:StartupOverlay DataContext="{Binding Startup}" />
+      <!-- Wrapped rather than putting IsVisible directly on StartupOverlay: that element
+           also carries its own DataContext="{Binding Startup}", and a compiled binding on the
+           same element resolves against that switched DataContext, not the ambient one this
+           IsVisible needs (Explain, off MainViewModel). -->
+      <Panel IsVisible="{Binding !Explain.IsShowingSetup}">
+        <views:StartupOverlay DataContext="{Binding Startup}" />
+      </Panel>
+      <Border Name="StartupSetupCard"
+              IsVisible="{Binding Explain.IsShowingSetup}"
+              Background="{DynamicResource SystemRegionBrush}"
+              CornerRadius="8"
+              MaxWidth="560"
+              MaxHeight="560"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <views:ExplainPanelView DataContext="{Binding Explain}" />
+      </Border>
     </Panel>
 
   </Panel>

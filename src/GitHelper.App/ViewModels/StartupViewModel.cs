@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using GitHelper.App.Infrastructure;
 using GitHelper.App.Settings;
 using GitHelper.Core.Git;
+using GitHelper.Core.Model;
 using GitHelper.Core.Repo;
 
 namespace GitHelper.App.ViewModels;
@@ -18,6 +19,9 @@ public enum StartupState
 
     /// <summary>Git is not installed — nothing else in the app can work.</summary>
     GitMissing,
+
+    /// <summary>A folder was chosen that is not a repository yet; offering to create one.</summary>
+    FolderIsNotARepository,
 }
 
 /// <summary>
@@ -30,20 +34,24 @@ public sealed partial class StartupViewModel : ViewModelBase
     private readonly IFolderPicker _picker;
     private readonly RepoStateReader _reader;
     private readonly GitEnvironment _environment;
+    private readonly FolderInspector _inspector;
 
     public StartupViewModel(
         ISettingsStore settings,
         IFolderPicker picker,
         RepoStateReader reader,
-        GitEnvironment environment)
+        GitEnvironment environment,
+        FolderInspector inspector)
     {
         _settings = settings;
         _picker = picker;
         _reader = reader;
         _environment = environment;
+        _inspector = inspector;
 
         BrowseCommand = new AsyncRelayCommand(BrowseAsync);
         SaveIdentityCommand = new AsyncRelayCommand(SaveIdentityAsync, () => CanSaveIdentity);
+        StartTrackingCommand = new AsyncRelayCommand(StartTrackingAsync, () => PendingFolder is not null);
     }
 
     public ObservableCollection<RecentRepoViewModel> Recents { get; } = new();
@@ -51,15 +59,17 @@ public sealed partial class StartupViewModel : ViewModelBase
     [ObservableProperty] private StartupState _state = StartupState.Checking;
     [ObservableProperty] private string? _blockingMessage;
     [ObservableProperty] private string? _blockingFixHint;
-    [ObservableProperty] private string? _errorMessage;
     [ObservableProperty] private bool _identityPromptNeeded;
     [ObservableProperty] private string _identityName = string.Empty;
     [ObservableProperty] private string _identityEmail = string.Empty;
     [ObservableProperty] private string? _identitySaveError;
+    [ObservableProperty] private FolderState? _pendingFolder;
 
     public IAsyncRelayCommand BrowseCommand { get; }
 
     public IAsyncRelayCommand SaveIdentityCommand { get; }
+
+    public IAsyncRelayCommand StartTrackingCommand { get; }
 
     public bool CanSaveIdentity =>
         !string.IsNullOrWhiteSpace(IdentityName) && !string.IsNullOrWhiteSpace(IdentityEmail);
@@ -74,7 +84,7 @@ public sealed partial class StartupViewModel : ViewModelBase
 
     public bool IsGitMissing => State == StartupState.GitMissing;
 
-    public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
+    public bool IsOfferingInit => State == StartupState.FolderIsNotARepository;
 
     public bool HasRecents => Recents.Count > 0;
 
@@ -84,6 +94,23 @@ public sealed partial class StartupViewModel : ViewModelBase
     /// A plain event could not be awaited, which previously forced the subscriber to block.
     /// </summary>
     public Func<string, CancellationToken, Task>? RepositoryOpenedAsync { get; set; }
+
+    /// <summary>Raised when the user accepts the offer. The shell routes it to the explain panel.</summary>
+    public Func<string, CancellationToken, Task>? InitRequestedAsync { get; set; }
+
+    /// <summary>
+    /// An empty folder and a folder full of work are the same command but different
+    /// situations, and a beginner needs to be told which one they are in.
+    /// </summary>
+    public string PendingFolderSummary => PendingFolder switch
+    {
+        null => string.Empty,
+        { FileCount: 0 } => "This folder is empty. That is fine — you can start tracking now "
+                            + "and add files later.",
+        { FileCount: 1 } => "I found 1 file here. Tracking lets you save versions of it.",
+        var folder => $"I found {folder.FileCount} files here. "
+                      + "Tracking lets you save versions of them.",
+    };
 
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -110,14 +137,13 @@ public sealed partial class StartupViewModel : ViewModelBase
 
     public async Task OpenAsync(string path, CancellationToken ct = default)
     {
-        ErrorMessage = null;
-
         var root = await _reader.FindRepoRootAsync(path, ct);
         if (root is null)
         {
-            ErrorMessage =
-                "That folder is not a git project. Git keeps its history in a hidden .git "
-                + "folder, and there is not one here or in any folder above it.";
+            // Not an error any more: this is where a project starts. The folder is deliberately
+            // not added to recents, because it is not a project yet.
+            PendingFolder = _inspector.Inspect(path);
+            State = StartupState.FolderIsNotARepository;
             return;
         }
 
@@ -127,6 +153,23 @@ public sealed partial class StartupViewModel : ViewModelBase
         LoadRecents();
 
         if (RepositoryOpenedAsync is { } handler) await handler(root, ct);
+    }
+
+    private Task StartTrackingAsync()
+        => PendingFolder is { } folder && InitRequestedAsync is { } handler
+            ? handler(folder.Path, CancellationToken.None)
+            : Task.CompletedTask;
+
+    /// <summary>
+    /// Backs out of the init offer and returns to the ordinary chooser. Used when the user
+    /// cancels an armed setup, or when the setup they confirmed was blocked or failed —
+    /// otherwise they would be stuck looking at an offer for a folder whose setup just
+    /// failed, with no route forward except choosing a different folder from scratch.
+    /// </summary>
+    public void ReturnToChooser()
+    {
+        PendingFolder = null;
+        State = StartupState.AwaitingChoice;
     }
 
     private async Task BrowseAsync()
@@ -178,9 +221,14 @@ public sealed partial class StartupViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsChecking));
         OnPropertyChanged(nameof(IsAwaitingChoice));
         OnPropertyChanged(nameof(IsGitMissing));
+        OnPropertyChanged(nameof(IsOfferingInit));
     }
 
-    partial void OnErrorMessageChanged(string? value) => OnPropertyChanged(nameof(HasError));
+    partial void OnPendingFolderChanged(FolderState? value)
+    {
+        OnPropertyChanged(nameof(PendingFolderSummary));
+        StartTrackingCommand.NotifyCanExecuteChanged();
+    }
 
     partial void OnIdentityNameChanged(string value)
     {

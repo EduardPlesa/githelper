@@ -72,6 +72,21 @@
                 IsEnabled="{Binding HasStagedChanges}"
                 HorizontalAlignment="Stretch" />
 
+        <!-- Offered until the project has a .gitignore. Same shape as the send-changes prompt. -->
+        <Border IsVisible="{Binding HasGitignoreOffer}"
+                Background="#20808080" CornerRadius="4" Padding="8">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="1" VerticalAlignment="Center">
+              <TextBlock Text="No .gitignore yet" FontWeight="SemiBold" TextWrapping="Wrap" />
+              <TextBlock Opacity="0.7" FontSize="12" TextWrapping="Wrap"
+                         Text="Would you like me to help you set one up? It keeps build output and secrets out of your commits." />
+            </StackPanel>
+            <Button Grid.Column="1" Content="Set one up"
+                    Command="{Binding CreateGitignoreCommand}"
+                    VerticalAlignment="Center" Margin="8,0,0,0" />
+          </Grid>
+        </Border>
+
         <!-- The commit -> send handoff. Committing ends here, so this is where a beginner
              needs telling that the work is saved but has not left the machine. Same push
              action as the Branches tab, surfaced at the moment it becomes relevant. -->

@@ -1,0 +1,29 @@
+# Files git should leave alone, for a Java project.
+
+# Compiled classes and build output.
+*.class
+target/
+build/
+out/
+
+# Compiled jars are build output too, but wrapper jars are the exception:
+# they are committed so the wrappers can bootstrap a build on a machine
+# that doesn't have Gradle or Maven installed yet.
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Gradle's local working directory.
+.gradle/
+
+# Secrets. Never commit these.
+.env
+.env.*
+*.jks
+
+# Editor settings and operating system junk.
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db

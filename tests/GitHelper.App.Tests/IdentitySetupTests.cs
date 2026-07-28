@@ -31,7 +31,8 @@ public class IdentitySetupTests
             new InMemorySettingsStore(),
             new StubFolderPicker(),
             new RepoStateReader(runner),
-            new GitEnvironment(runner));
+            new GitEnvironment(runner),
+            new FolderInspector());
     }
 
     [Fact]
@@ -114,7 +115,7 @@ public class IdentitySetupTests
         };
         var startup = new StartupViewModel(
             new InMemorySettingsStore(), new StubFolderPicker(),
-            new RepoStateReader(runner), new GitEnvironment(runner));
+            new RepoStateReader(runner), new GitEnvironment(runner), new FolderInspector());
         await startup.InitializeAsync();
         startup.IdentityName = "Ada Lovelace";
         startup.IdentityEmail = "ada@example.com";

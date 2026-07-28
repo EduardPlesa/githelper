@@ -10,6 +10,7 @@ using GitHelper.Core.Actions;
 using GitHelper.Core.Content;
 using GitHelper.Core.Git;
 using GitHelper.Core.Repo;
+using GitHelper.Core.Setup;
 
 namespace GitHelper.App;
 
@@ -51,14 +52,16 @@ public partial class App : Application
         var content = ContentLibrary.Load();
         var actions = new ActionService(runner, reader, content);
         var environment = new GitEnvironment(runner);
+        var inspector = new FolderInspector();
+        var setupService = new SetupService(runner, inspector, content);
 
         var settings = new JsonSettingsStore(JsonSettingsStore.DefaultFilePath);
         var dispatcher = new AvaloniaUiDispatcher();
         var picker = new StorageFolderPicker(windowAccessor);
         var confirmations = new AvaloniaConfirmationDialog(windowAccessor);
 
-        var explain = new ExplainPanelViewModel(actions, confirmations, settings);
-        var startup = new StartupViewModel(settings, picker, reader, environment);
+        var explain = new ExplainPanelViewModel(actions, confirmations, settings, setupService);
+        var startup = new StartupViewModel(settings, picker, reader, environment, inspector);
 
         return new MainViewModel(
             reader,
@@ -71,6 +74,7 @@ public partial class App : Application
             new RepoWatcher(RefreshDebounce, () => { }),
             new ThemeController(),
             settings,
-            dispatcher);
+            dispatcher,
+            inspector);
     }
 }

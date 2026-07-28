@@ -9,7 +9,9 @@
 
   <ItemGroup>
     <EmbeddedResource Include="actions/**/*.md" />
+    <EmbeddedResource Include="setup/**/*.md" />
     <EmbeddedResource Include="terms/**/*.md" />
+    <EmbeddedResource Include="gitignore/**/*.gitignore" />
   </ItemGroup>
 
 </Project>

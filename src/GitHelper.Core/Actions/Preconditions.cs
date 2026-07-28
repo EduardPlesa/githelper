@@ -145,3 +145,69 @@ public sealed class RequiresBranchDoesNotExist : IPrecondition
                 $"A branch called '{request.BranchName}' already exists. Pick a different name.")
             : PreconditionResult.Ok;
 }
+
+public sealed class RequiresNoRemote : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+        => state.HasRemote
+            ? PreconditionResult.Fail(
+                "This project already has an online copy configured. Connecting a second one "
+                + "would leave two addresses to keep straight, so disconnect the current one "
+                + "first if you want to point it somewhere else.",
+                "disconnect-remote")
+            : PreconditionResult.Ok;
+}
+
+/// <summary>
+/// The one value in this app that arrives from the clipboard and ends up in argv. Argv
+/// arrays prevent shell injection but not argument injection: git reads a leading '-' as a
+/// flag, so `--upload-pack=...` pasted here would be an instruction rather than a place.
+/// The messages are written for someone who pasted the wrong thing, not for an attacker.
+/// </summary>
+public sealed class RequiresValidRemoteUrl : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+    {
+        var url = request.RemoteUrl?.Trim();
+
+        if (string.IsNullOrEmpty(url))
+            return PreconditionResult.Fail(
+                "Paste the address of the empty repository you created on GitHub. GitHub shows "
+                + "it on the page you land on straight after creating one.");
+
+        if (url.StartsWith('-'))
+            return PreconditionResult.Fail(
+                "An address cannot start with a dash — git would read that as an instruction "
+                + "rather than a place. Copy the address again from GitHub.");
+
+        if (url.StartsWith("git@", StringComparison.Ordinal))
+            return PreconditionResult.Ok;
+
+        if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return PreconditionResult.Fail(
+                "A project address starts with https:// or git@. Copy it from the green Code "
+                + "button on the project's page on GitHub.");
+
+        if (url.Any(char.IsWhiteSpace))
+            return PreconditionResult.Fail(
+                "That address has a space in it, so something else was probably copied along "
+                + "with it. Copy just the address.");
+
+        return IsPageInsideTheProject(url)
+            ? PreconditionResult.Fail(
+                "That is the address of a page inside the project rather than the project "
+                + "itself. Go to the project's front page and copy the address from the green "
+                + "Code button.")
+            : PreconditionResult.Ok;
+    }
+
+    /// <summary>
+    /// A clone address is host, owner, project — nothing deeper. Anything longer is a page
+    /// the user happened to be looking at: /tree/main, /settings, /pull/3.
+    /// </summary>
+    private static bool IsPageInsideTheProject(string url)
+    {
+        var afterScheme = url["https://".Length..].TrimEnd('/');
+        return afterScheme.Split('/', StringSplitOptions.RemoveEmptyEntries).Length > 3;
+    }
+}

@@ -187,4 +187,76 @@ public class PreconditionTests
         Assert.False(branchNameResult.Satisfied);
         Assert.False(string.IsNullOrWhiteSpace(branchNameResult.Message));
     }
+
+    private static ActionRequest UrlRequest(string? url)
+        => new("connect-remote", RemoteUrl: url);
+
+    [Fact]
+    public void RequiresNoRemote_BlocksASecondConnectAndPointsAtDisconnecting()
+    {
+        var result = new RequiresNoRemote().Evaluate(State(hasRemote: true), UrlRequest("https://x/y.git"));
+
+        Assert.False(result.Satisfied);
+        Assert.Equal("disconnect-remote", result.SuggestedActionId);
+    }
+
+    [Fact]
+    public void RequiresNoRemote_PassesWhenNothingIsConnectedYet()
+    {
+        Assert.True(
+            new RequiresNoRemote().Evaluate(State(hasRemote: false), UrlRequest("https://x/y.git")).Satisfied);
+    }
+
+    [Theory]
+    [InlineData("https://github.com/me/project.git")]
+    [InlineData("https://github.com/me/project")]
+    [InlineData("git@github.com:me/project.git")]
+    public void RequiresValidRemoteUrl_AcceptsTheTwoFormsGitHubOffers(string url)
+    {
+        Assert.True(new RequiresValidRemoteUrl().Evaluate(State(hasRemote: false), UrlRequest(url)).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresValidRemoteUrl_RejectsALeadingDashAsAnInstructionRatherThanAPlace()
+    {
+        // Argument injection: argv arrays stop shell injection, but git still reads a
+        // leading '-' as a flag. This is the shape that matters.
+        var result = new RequiresValidRemoteUrl()
+            .Evaluate(State(hasRemote: false), UrlRequest("--upload-pack=calc.exe"));
+
+        Assert.False(result.Satisfied);
+        Assert.Contains("dash", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RequiresValidRemoteUrl_RejectsAPageInsideTheProjectWithAReadableExplanation()
+    {
+        // The common wrong paste: whatever the user was looking at on github.com.
+        var result = new RequiresValidRemoteUrl()
+            .Evaluate(State(hasRemote: false), UrlRequest("https://github.com/me/project/tree/main"));
+
+        Assert.False(result.Satisfied);
+        Assert.Contains("Code button", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void RequiresValidRemoteUrl_AsksForAnAddressWhenTheBoxIsEmpty(string? url)
+    {
+        var result = new RequiresValidRemoteUrl().Evaluate(State(hasRemote: false), UrlRequest(url));
+
+        Assert.False(result.Satisfied);
+        Assert.Contains("paste", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RequiresValidRemoteUrl_RejectsSomethingThatIsNotAnAddressAtAll()
+    {
+        var result = new RequiresValidRemoteUrl().Evaluate(State(hasRemote: false), UrlRequest("my project"));
+
+        Assert.False(result.Satisfied);
+        Assert.Contains("https://", result.Message!, StringComparison.Ordinal);
+    }
 }

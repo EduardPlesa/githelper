@@ -50,6 +50,32 @@ public class CommandLogViewModelTests
     }
 
     [Fact]
+    public async Task CommandsRecordedOnSeveralThreadsAtOnceAllLand()
+    {
+        // Two git-backed operations really do finish at the same moment in the app — an
+        // action completing while the file watcher refreshes — and EntryRecorded fires on
+        // whichever thread ran git. ObservableCollection is not thread-safe, so if the
+        // dispatcher does not funnel those appends one at a time this corrupts its backing
+        // list: either an IndexOutOfRangeException out of InsertItem, or a silently short
+        // collection.
+        var log = new CommandLog();
+        using var vm = new CommandLogViewModel(log, new StubDispatcher());
+        const int threads = 4;
+        const int perThread = 250;
+        using var ready = new Barrier(threads);
+
+        var workers = Enumerable.Range(0, threads).Select(_ => Task.Run(() =>
+        {
+            ready.SignalAndWait();
+            for (var i = 0; i < perThread; i++) log.Record(Result("status"));
+        })).ToArray();
+
+        await Task.WhenAll(workers);
+
+        Assert.Equal(threads * perThread, vm.Entries.Count);
+    }
+
+    [Fact]
     public void ClipboardTextGivesPasteableCommands()
     {
         var log = new CommandLog();

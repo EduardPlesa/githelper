@@ -8,5 +8,10 @@ public interface IUiDispatcher
 {
     bool IsOnUiThread { get; }
 
+    /// <summary>
+    /// Runs <paramref name="action"/> on the UI thread. Callers may post from any thread, but
+    /// no two posted actions ever run at once — that is what lets viewmodels touch
+    /// ObservableCollections from a Post without locking. Implementations must honour it.
+    /// </summary>
     void Post(Action action);
 }

@@ -71,10 +71,12 @@ public class PublishJourneyTests
     }
 
     [Fact]
-    public async Task ARejectedAddressStaysInTheBoxForTheUserToCorrect()
+    public async Task ARejectedAddressBlocksTheActionWithoutTouchingWhatWasTyped()
     {
-        // The spec's rule is that a failed action never discards what the user typed.
-        // Only the success path had a test; this is the half that matters more.
+        // What this proves is the preview path: a page URL is refused by validation, and
+        // nothing on the way there disturbs the box. The separate question — that a failed
+        // *run* keeps the text — is settled in ChangesConnectRemoteTests, because it needs
+        // an outcome that only a completed run produces.
         using var repo = await TestRepo.CreateAsync();
         var (_, reader, panel) = NewPanel();
         var changes = new ChangesViewModel(panel, new StubBrowserLauncher());

@@ -124,4 +124,25 @@ public class ChangesConnectRemoteTests
 
         Assert.Equal(string.Empty, f.Changes.RemoteUrl);
     }
+
+    [Fact]
+    public void TheAddressBoxKeepsWhatWasTypedWhenTheConnectFailed()
+    {
+        // The counterpart of the test above, and the more important half: clearing is driven
+        // by a remote observably appearing, so an address git rejected stays put for the user
+        // to correct rather than vanishing along with the failure.
+        var f = NewFixture();
+        f.Changes.RemoteUrl = "https://github.com/me/typo.git";
+
+        f.Changes.OnActionCompleted(new ActionOutcome(
+            Success: false,
+            Result: new GitCommandResult(Array.Empty<string>(), "", "", 1, TimeSpan.Zero),
+            Narration: null,
+            Error: null,
+            Before: State(hasRemote: false),
+            After: State(hasRemote: false),
+            Blockers: Array.Empty<PreconditionResult>()));
+
+        Assert.Equal("https://github.com/me/typo.git", f.Changes.RemoteUrl);
+    }
 }

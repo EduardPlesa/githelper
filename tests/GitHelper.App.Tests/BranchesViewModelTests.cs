@@ -283,4 +283,35 @@ public class BranchesViewModelTests
         Assert.DoesNotContain(after.Branches, b => b.Name == "feature");
     }
 
+    [Fact]
+    public async Task DisconnectRemoteCommand_PreviewsWithoutDisconnectingBecauseItIsGated()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("remote", "add", "origin", "https://example.invalid/x.git");
+        var f = NewFixture();
+        f.Branches.Update(await f.Reader.ReadAsync(repo.Path));
+
+        await f.Branches.DisconnectRemoteCommand.ExecuteAsync(null);
+
+        Assert.Equal("Disconnect from GitHub", f.Panel.Title);
+        Assert.True(f.Panel.RequiresInlineConfirmation);
+        var after = await f.Reader.ReadAsync(repo.Path);
+        Assert.True(after.HasRemote);
+    }
+
+    [Fact]
+    public async Task DisconnectRemoteCommand_ThenConfirming_RemovesTheRemote()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("remote", "add", "origin", "https://example.invalid/x.git");
+        var f = NewFixture();
+        f.Branches.Update(await f.Reader.ReadAsync(repo.Path));
+
+        await f.Branches.DisconnectRemoteCommand.ExecuteAsync(null);
+        await f.Panel.RunAsync();
+
+        var remotes = await repo.GitAsync("remote");
+        Assert.Equal(string.Empty, remotes.StdOut.Trim());
+    }
+
 }

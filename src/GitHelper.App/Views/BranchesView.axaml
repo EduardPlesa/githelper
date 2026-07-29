@@ -18,6 +18,8 @@
       <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasRemote}">
         <Button Content="Check for updates" Command="{Binding FetchCommand}" />
         <Button Content="Get changes" Command="{Binding PullCommand}" />
+        <Button Name="DisconnectRemoteButton" Content="Disconnect from GitHub"
+                Command="{Binding DisconnectRemoteCommand}" />
       </StackPanel>
       <TextBlock IsVisible="{Binding !HasRemote}"
                  Text="This project has no online copy set up, so there is nowhere to send changes to or get them from."

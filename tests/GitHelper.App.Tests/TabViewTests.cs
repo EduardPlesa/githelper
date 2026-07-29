@@ -132,8 +132,15 @@ public class TabViewTests
         var window = new Window { Content = view };
         window.Show();
 
-        Assert.NotNull(view.FindControl<TextBox>("RemoteUrlBox"));
+        var box = view.FindControl<TextBox>("RemoteUrlBox");
+        Assert.NotNull(box);
         Assert.True(vm.HasNoRemoteOffer);
+
+        box!.Text = "typed in the view";
+        Assert.Equal("typed in the view", vm.RemoteUrl);
+
+        vm.RemoteUrl = "set on the viewmodel";
+        Assert.Equal("set on the viewmodel", box.Text);
     }
 
     [AvaloniaFact]
@@ -153,5 +160,23 @@ public class TabViewTests
 
         box!.Text = "feature";
         Assert.Equal("feature", vm.NewBranchName);
+    }
+
+    [AvaloniaFact]
+    public async Task BranchesView_ShowsTheDisconnectButtonWhenThereIsARemote()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("remote", "add", "origin", "https://example.invalid/x.git");
+        var reader = new RepoStateReader(new GitRunner());
+        var vm = new BranchesViewModel(NewPanel());
+        vm.Update(await reader.ReadAsync(repo.Path));
+
+        var view = new BranchesView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+
+        var button = view.FindControl<Button>("DisconnectRemoteButton");
+        Assert.NotNull(button);
+        Assert.True(vm.HasRemote);
     }
 }

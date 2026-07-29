@@ -118,7 +118,8 @@ app could show you.
 ## Publishing to GitHub
 
 Most beginners are never told that git and GitHub are two different things. The Changes tab
-says so at the moment it matters — when a project has commits and no online copy:
+says so at the moment it matters — whenever a project has no online copy, even before the
+first commit:
 
 > **Not on GitHub yet**
 > This project only exists on this computer. Create an empty repository on GitHub — no
@@ -273,7 +274,7 @@ are *declined* rather than deferred:
 src/
   GitHelper.Core/       engine — git, parsing, actions, errors
   GitHelper.Content/    authored explanations + glossary + .gitignore templates
-                        (13 actions, 2 setup ops, 9 terms, 5 templates)
+                        (15 actions, 2 setup ops, 11 terms, 5 templates)
   GitHelper.App/        Avalonia UI
 tests/
   GitHelper.Core.Tests/ engine tests against real git

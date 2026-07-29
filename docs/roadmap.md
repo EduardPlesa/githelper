@@ -46,7 +46,7 @@ The deferred list is not one decision. It is four, and they cost wildly differen
 
 ### Bucket 1 — More of the same
 
-**Tags, stash, cherry-pick (clean), remote management.**
+**Tags, stash, cherry-pick (clean), ~~remote management~~ (shipped).**
 
 These fit the existing model exactly: one descriptor plus one content file, no new flow.
 

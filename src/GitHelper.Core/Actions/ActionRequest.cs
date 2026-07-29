@@ -8,4 +8,5 @@ public sealed record ActionRequest(
     string ActionId,
     string? Path = null,
     string? Message = null,
-    string? BranchName = null);
+    string? BranchName = null,
+    string? RemoteUrl = null);

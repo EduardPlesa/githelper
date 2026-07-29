@@ -59,6 +59,7 @@ public partial class App : Application
         var dispatcher = new AvaloniaUiDispatcher();
         var picker = new StorageFolderPicker(windowAccessor);
         var confirmations = new AvaloniaConfirmationDialog(windowAccessor);
+        var browser = new ShellBrowserLauncher();
 
         var explain = new ExplainPanelViewModel(actions, confirmations, settings, setupService);
         var startup = new StartupViewModel(settings, picker, reader, environment, inspector);
@@ -68,7 +69,7 @@ public partial class App : Application
             startup,
             explain,
             new CommandLogViewModel(commandLog, dispatcher),
-            new ChangesViewModel(explain),
+            new ChangesViewModel(explain, browser),
             new HistoryViewModel(explain),
             new BranchesViewModel(explain),
             new RepoWatcher(RefreshDebounce, () => { }),

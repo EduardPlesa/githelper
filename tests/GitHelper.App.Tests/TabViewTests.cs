@@ -116,6 +116,34 @@ public class TabViewTests
     }
 
     [AvaloniaFact]
+    public void ChangesView_ShowsTheConnectBoxWhenThereIsNoRemote()
+    {
+        var vm = new ChangesViewModel(NewPanel(), new StubBrowserLauncher());
+        vm.Update(
+            new GitHelper.Core.Model.RepoState(
+                RepoRoot: @"C:\r", Branch: "main", IsDetached: false, Upstream: null,
+                Ahead: 0, Behind: 0, HasCommits: true, HasRemote: false,
+                Changes: Array.Empty<GitHelper.Core.Model.FileChange>(),
+                RecentCommits: Array.Empty<GitHelper.Core.Model.CommitInfo>(),
+                Branches: Array.Empty<GitHelper.Core.Model.BranchInfo>()),
+            null);
+
+        var view = new ChangesView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+
+        var box = view.FindControl<TextBox>("RemoteUrlBox");
+        Assert.NotNull(box);
+        Assert.True(vm.HasNoRemoteOffer);
+
+        box!.Text = "typed in the view";
+        Assert.Equal("typed in the view", vm.RemoteUrl);
+
+        vm.RemoteUrl = "set on the viewmodel";
+        Assert.Equal("set on the viewmodel", box.Text);
+    }
+
+    [AvaloniaFact]
     public async Task BranchesView_BindsTheNewBranchNameBoxBothWays()
     {
         using var repo = await TestRepo.CreateAsync();
@@ -132,5 +160,42 @@ public class TabViewTests
 
         box!.Text = "feature";
         Assert.Equal("feature", vm.NewBranchName);
+    }
+
+    [AvaloniaFact]
+    public async Task BranchesView_ShowsTheDisconnectButtonWhenThereIsARemote()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("remote", "add", "origin", "https://example.invalid/x.git");
+        var reader = new RepoStateReader(new GitRunner());
+        var vm = new BranchesViewModel(NewPanel());
+        vm.Update(await reader.ReadAsync(repo.Path));
+
+        var view = new BranchesView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+
+        var button = view.FindControl<Button>("DisconnectRemoteButton");
+        Assert.NotNull(button);
+        Assert.True(vm.HasRemote);
+        Assert.True(button!.IsEffectivelyVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task BranchesView_HidesTheDisconnectButtonWhenThereIsNoRemote()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var reader = new RepoStateReader(new GitRunner());
+        var vm = new BranchesViewModel(NewPanel());
+        vm.Update(await reader.ReadAsync(repo.Path));
+
+        var view = new BranchesView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+
+        var button = view.FindControl<Button>("DisconnectRemoteButton");
+        Assert.NotNull(button);
+        Assert.False(vm.HasRemote);
+        Assert.False(button!.IsEffectivelyVisible);
     }
 }

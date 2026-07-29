@@ -135,6 +135,20 @@ public class ActionServiceTests
     }
 
     [Fact]
+    public async Task PreviewAsync_DoesNotEchoARejectedRemoteUrlBackIntoTheSlots()
+    {
+        using var repo = await TestRepo.CreateAsync();
+
+        var preview = await NewService().PreviewAsync(
+            repo.Path,
+            new ActionRequest("connect-remote", RemoteUrl: "https://ghp_exampletoken@github.com/me/project.git"));
+
+        Assert.False(preview.CanRun);
+        Assert.DoesNotContain(
+            preview.Slots.Values, value => value.Contains("ghp_exampletoken", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task RunAsync_RejectsAnUnknownActionId()
     {
         using var repo = await TestRepo.CreateAsync();

@@ -17,6 +17,12 @@ public sealed class ShellBrowserLauncher : IBrowserLauncher
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        // PlatformNotSupportedException belongs here with the other two: UseShellExecute
+        // throws it on a runtime with no shell, and this project has no OS-specific target
+        // framework ruling that out.
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception
+                                      or InvalidOperationException
+                                      or PlatformNotSupportedException)
         {
         }
     }

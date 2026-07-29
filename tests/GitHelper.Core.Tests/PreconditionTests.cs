@@ -239,6 +239,29 @@ public class PreconditionTests
         Assert.Contains("Code button", result.Message!, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void RequiresValidRemoteUrl_RejectsATokenBuiltIntoTheAddress()
+    {
+        // A form many beginner tutorials still recommend. It would work, but it writes the
+        // token to .git/config, the command log, and the clipboard — this app never needs it.
+        var result = new RequiresValidRemoteUrl()
+            .Evaluate(State(hasRemote: false), UrlRequest("https://ghp_xxx@github.com/me/project.git"));
+
+        Assert.False(result.Satisfied);
+        Assert.Contains("token", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RequiresValidRemoteUrl_RejectsAnAddressThatStopsAtTheHost()
+    {
+        // Too few segments is just as broken as too many: there is no owner or project here.
+        var result = new RequiresValidRemoteUrl()
+            .Evaluate(State(hasRemote: false), UrlRequest("https://github.com"));
+
+        Assert.False(result.Satisfied);
+        Assert.Contains("Code button", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

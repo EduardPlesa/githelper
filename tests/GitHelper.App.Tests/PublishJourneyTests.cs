@@ -9,7 +9,9 @@ namespace GitHelper.App.Tests;
 /// <summary>
 /// A local repository with one commit, taken as far as a test can go: the offer appears,
 /// the user opens GitHub, pastes an address, confirms, and origin is set afterwards. The
-/// send itself needs a network and a credential helper, so it stops there.
+/// send itself needs a network and a credential helper, so it stops there. A second test
+/// covers the rejection path: a pasted address that fails validation blocks the run without
+/// disturbing what was typed into the box.
 /// </summary>
 public class PublishJourneyTests
 {

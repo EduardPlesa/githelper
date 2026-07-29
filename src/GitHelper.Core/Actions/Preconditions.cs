@@ -166,6 +166,8 @@ public sealed class RequiresNoRemote : IPrecondition
 /// </summary>
 public sealed class RequiresValidRemoteUrl : IPrecondition
 {
+    private const string HttpsPrefix = "https://";
+
     public PreconditionResult Evaluate(RepoState state, ActionRequest request)
     {
         var url = request.RemoteUrl?.Trim();
@@ -188,26 +190,49 @@ public sealed class RequiresValidRemoteUrl : IPrecondition
         if (url.StartsWith("git@", StringComparison.Ordinal))
             return PreconditionResult.Ok;
 
-        if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        if (!url.StartsWith(HttpsPrefix, StringComparison.OrdinalIgnoreCase))
             return PreconditionResult.Fail(
-                "A project address starts with https:// or git@. Copy it from the green Code "
-                + "button on the project's page on GitHub.");
+                $"A project address starts with {HttpsPrefix} or git@. Copy it from the green "
+                + "Code button on the project's page on GitHub.");
 
-        return IsPageInsideTheProject(url)
-            ? PreconditionResult.Fail(
+        if (AuthorityOf(url).Contains('@'))
+            return PreconditionResult.Fail(
+                "That address has a sign-in token built into it. Copy the plain address from "
+                + "the green Code button instead — this app never needs your token, and git "
+                + "asks for your sign-in itself the first time you send.");
+
+        var segmentCount = ClonePathSegmentCount(url);
+
+        if (segmentCount < 3)
+            return PreconditionResult.Fail(
+                "That address stops at the site itself. Include the owner and the project "
+                + "name — copy the whole address from the green Code button.");
+
+        if (segmentCount > 3)
+            return PreconditionResult.Fail(
                 "That is the address of a page inside the project rather than the project "
                 + "itself. Go to the project's front page and copy the address from the green "
-                + "Code button.")
-            : PreconditionResult.Ok;
+                + "Code button.");
+
+        return PreconditionResult.Ok;
+    }
+
+    /// <summary>The authority is everything after the scheme and before the first '/'.</summary>
+    private static string AuthorityOf(string url)
+    {
+        var afterScheme = url[HttpsPrefix.Length..];
+        var slash = afterScheme.IndexOf('/');
+        return slash < 0 ? afterScheme : afterScheme[..slash];
     }
 
     /// <summary>
-    /// A clone address is host, owner, project — nothing deeper. Anything longer is a page
-    /// the user happened to be looking at: /tree/main, /settings, /pull/3.
+    /// A clone address is host, owner, project — nothing more, nothing less. Fewer segments
+    /// is a page that stops at the site itself; more is a page the user happened to be
+    /// looking at: /tree/main, /settings, /pull/3.
     /// </summary>
-    private static bool IsPageInsideTheProject(string url)
+    private static int ClonePathSegmentCount(string url)
     {
-        var afterScheme = url["https://".Length..].TrimEnd('/');
-        return afterScheme.Split('/', StringSplitOptions.RemoveEmptyEntries).Length > 3;
+        var afterScheme = url[HttpsPrefix.Length..].TrimEnd('/');
+        return afterScheme.Split('/', StringSplitOptions.RemoveEmptyEntries).Length;
     }
 }

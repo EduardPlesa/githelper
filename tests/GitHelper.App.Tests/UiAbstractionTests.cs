@@ -30,6 +30,38 @@ public class StubDispatcherTests
         Assert.False(ran);
         Assert.Equal(1, dispatcher.PostCount);
     }
+
+    [Fact]
+    public async Task Post_NeverRunsTwoActionsAtOnce()
+    {
+        // Avalonia's dispatcher runs everything on the single UI thread, so a posted action
+        // can never overlap another. Tests lean on that: a journey test has the file watcher
+        // refreshing on a thread-pool thread while an action runs on the test thread, and
+        // both post appends into the same ObservableCollection. A stub that ran callbacks on
+        // whichever thread called Post let those appends collide.
+        var dispatcher = new StubDispatcher();
+        var inside = 0;
+        var overlapped = false;
+        const int threads = 4;
+        using var ready = new Barrier(threads);
+
+        var workers = Enumerable.Range(0, threads).Select(_ => Task.Run(() =>
+        {
+            ready.SignalAndWait();
+            for (var i = 0; i < 250; i++)
+                dispatcher.Post(() =>
+                {
+                    if (Interlocked.Increment(ref inside) > 1) overlapped = true;
+                    Thread.Sleep(0); // widen the window so an unserialized stub fails reliably
+                    Interlocked.Decrement(ref inside);
+                });
+        })).ToArray();
+
+        await Task.WhenAll(workers);
+
+        Assert.False(overlapped);
+        Assert.Equal(threads * 250, dispatcher.PostCount);
+    }
 }
 
 public class StubFolderPickerTests

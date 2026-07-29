@@ -8,19 +8,36 @@ namespace GitHelper.App.Tests;
 /// Runs posted callbacks inline by default, so a viewmodel test sees the effect of a
 /// background refresh without pumping a real dispatcher. Set RunInline to false to
 /// assert that something was posted rather than executed.
+///
+/// Inline means "on the calling thread", and tests really do post from several threads at
+/// once — a journey test has the file watcher refreshing on a thread-pool thread while an
+/// action runs on the test thread, and both append to the same ObservableCollection. The
+/// real dispatcher can never overlap two actions because it has one UI thread to run them
+/// on, so the stub takes a gate to keep the same promise.
 /// </summary>
 public sealed class StubDispatcher : IUiDispatcher
 {
+    private readonly Lock _gate = new();
+    private int _postCount;
+
     public bool IsOnUiThread => true;
 
     public bool RunInline { get; set; } = true;
 
-    public int PostCount { get; private set; }
+    public int PostCount
+    {
+        get { lock (_gate) return _postCount; }
+    }
 
     public void Post(Action action)
     {
-        PostCount++;
-        if (RunInline) action();
+        // The action runs under the gate, not merely the counter bump: serializing the
+        // bookkeeping while letting the callbacks race would defeat the point.
+        lock (_gate)
+        {
+            _postCount++;
+            if (RunInline) action();
+        }
     }
 }
 

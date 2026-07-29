@@ -128,6 +128,26 @@ public static class ActionCatalog
             {
                 new RequiresBranchName(), new RequiresNotCurrentBranch(),
             }),
+
+        new GitAction(
+            Id: "connect-remote",
+            Title: "Connect to GitHub",
+            Danger: Danger.Caution,
+            // Trimmed here as well as in the precondition: the two must agree on the exact
+            // string, and the user's paste routinely carries trailing whitespace.
+            BuildArgs: (_, r) => new[] { "remote", "add", "origin", r.RemoteUrl!.Trim() },
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresNoRemote(), new RequiresValidRemoteUrl(),
+            },
+            UndoActionId: "disconnect-remote"),
+
+        new GitAction(
+            Id: "disconnect-remote",
+            Title: "Disconnect from GitHub",
+            Danger: Danger.Caution,
+            BuildArgs: (_, _) => new[] { "remote", "remove", "origin" },
+            Preconditions: new IPrecondition[] { new RequiresRemote() }),
     };
 
     private static readonly Dictionary<string, GitAction> ById =

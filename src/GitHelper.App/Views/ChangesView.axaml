@@ -87,6 +87,27 @@
           </Grid>
         </Border>
 
+        <!-- The third state of the send prompt: there is no online copy at all. The app
+             wires up the address; creating the repository stays the user's job, because
+             doing it for them would need a token this app refuses to hold. -->
+        <Border IsVisible="{Binding HasNoRemoteOffer}"
+                Background="#20808080" CornerRadius="4" Padding="8">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Not on GitHub yet" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Opacity="0.7" FontSize="12" TextWrapping="Wrap"
+                       Text="This project only exists on this computer. Create an empty repository on GitHub — no README, no .gitignore — then paste its address here." />
+            <Grid ColumnDefinitions="*,Auto,Auto">
+              <TextBox Name="RemoteUrlBox"
+                       Text="{Binding RemoteUrl, Mode=TwoWay}"
+                       Watermark="https://github.com/you/your-project.git" />
+              <Button Grid.Column="1" Content="Create on GitHub"
+                      Command="{Binding OpenGitHubCommand}" Margin="6,0,0,0" />
+              <Button Grid.Column="2" Content="Connect"
+                      Command="{Binding ConnectRemoteCommand}" Margin="6,0,0,0" />
+            </Grid>
+          </StackPanel>
+        </Border>
+
         <!-- The commit -> send handoff. Committing ends here, so this is where a beginner
              needs telling that the work is saved but has not left the machine. Same push
              action as the Branches tab, surfaced at the moment it becomes relevant. -->

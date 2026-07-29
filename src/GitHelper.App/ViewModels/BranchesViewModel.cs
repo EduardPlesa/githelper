@@ -22,6 +22,7 @@ public sealed partial class BranchesViewModel : ViewModelBase
             () => InvokeAsync("create-branch", branchName: NewBranchName));
         FetchCommand = new AsyncRelayCommand(() => InvokeAsync("fetch"));
         PullCommand = new AsyncRelayCommand(() => InvokeAsync("pull"));
+        DisconnectRemoteCommand = new AsyncRelayCommand(() => InvokeAsync("disconnect-remote"));
     }
 
     public ObservableCollection<BranchRowViewModel> Branches { get; } = new();
@@ -41,6 +42,14 @@ public sealed partial class BranchesViewModel : ViewModelBase
     /// on the Changes tab instead, beside the Commit button — see ChangesViewModel.PushCommand.
     /// </summary>
     public IAsyncRelayCommand PullCommand { get; }
+
+    /// <summary>
+    /// The undo for connect-remote. It has to live somewhere clickable because the app's own
+    /// error messages (the fetch-first rule, the two remote-mismatch translations, and
+    /// connect-remote's "how to undo this" text) all tell the user to disconnect -- so the
+    /// action needs a reachable control, not just a sentence.
+    /// </summary>
+    public IAsyncRelayCommand DisconnectRemoteCommand { get; }
 
     public void Update(RepoState state)
     {

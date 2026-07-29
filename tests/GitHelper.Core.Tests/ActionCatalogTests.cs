@@ -24,13 +24,14 @@ public class ActionCatalogTests
     }
 
     [Fact]
-    public void All_ContainsExactlyTheThirteenV1Actions()
+    public void All_ContainsExactlyTheFifteenActions()
     {
         var expected = new[]
         {
             "stage-file", "unstage-file", "stage-all", "unstage-all", "commit",
             "create-branch", "switch-branch", "fetch", "pull", "push",
             "discard-file", "undo-last-commit", "delete-branch",
+            "connect-remote", "disconnect-remote",
         };
 
         Assert.Equal(expected.OrderBy(x => x), ActionCatalog.All.Select(a => a.Id).OrderBy(x => x));
@@ -216,4 +217,56 @@ public class ActionCatalogTests
 
         Assert.DoesNotContain(state.Branches, b => b.Name == "feature");
     }
+
+    [Fact]
+    public void ConnectRemote_BuildsRemoteAddOriginWithTheTrimmedUrl()
+    {
+        var action = ActionCatalog.Find("connect-remote")!;
+        var state = MinimalState();
+
+        var args = action.BuildArgs(state, new ActionRequest(
+            "connect-remote", RemoteUrl: "  https://github.com/me/project.git  "));
+
+        Assert.Equal(
+            new[] { "remote", "add", "origin", "https://github.com/me/project.git" }, args);
+    }
+
+    [Fact]
+    public void DisconnectRemote_BuildsRemoteRemoveOrigin()
+    {
+        var action = ActionCatalog.Find("disconnect-remote")!;
+
+        var args = action.BuildArgs(MinimalState(), new ActionRequest("disconnect-remote"));
+
+        Assert.Equal(new[] { "remote", "remove", "origin" }, args);
+    }
+
+    [Fact]
+    public void ConnectRemote_UndoesToDisconnectRemote()
+    {
+        Assert.Equal("disconnect-remote", ActionCatalog.Find("connect-remote")!.UndoActionId);
+    }
+
+    [Fact]
+    public async Task ConnectRemote_ThenDisconnectRemote_RoundTripsAgainstARealRepository()
+    {
+        using var repo = await TestRepo.CreateAsync();
+
+        var connected = await RunActionAsync(
+            repo, new ActionRequest("connect-remote", RemoteUrl: "https://github.com/me/project.git"));
+        Assert.True(connected.HasRemote);
+        Assert.Contains("origin", (await repo.GitAsync("remote")).StdOut);
+
+        var disconnected = await RunActionAsync(repo, new ActionRequest("disconnect-remote"));
+        Assert.False(disconnected.HasRemote);
+        Assert.Empty((await repo.GitAsync("remote")).StdOut.Trim());
+    }
+
+    /// <summary>A minimal state for descriptors that read nothing out of it.</summary>
+    private static RepoState MinimalState() => new(
+        RepoRoot: @"C:\r", Branch: "main", IsDetached: false, Upstream: null,
+        Ahead: 0, Behind: 0, HasCommits: true, HasRemote: false,
+        Changes: Array.Empty<FileChange>(),
+        RecentCommits: Array.Empty<CommitInfo>(),
+        Branches: Array.Empty<BranchInfo>());
 }

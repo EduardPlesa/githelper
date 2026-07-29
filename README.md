@@ -70,6 +70,7 @@ when git did something unexpected.
 
 - **Starts the repository for you** — pick a folder that isn't one yet and the app offers `git init`, explained like everything else, instead of dead-ending on an error.
 - **Offers a `.gitignore`** chosen for the kind of project it finds, shown in full and commented line by line before it's written. It will never overwrite one you already have.
+- **Publishes to GitHub** — creates the connection, explains that git and GitHub are different things, and warns about the empty-repository trap before it bites. It never asks for a token: you create the repository, the app wires it up.
 - **Three-pane shell** — file/history/branch lists, the explain panel, and a permanent command log.
 - **A command log that teaches the CLI** — every `git` invocation the app makes, with exit codes, in pasteable form. Multi-word arguments come out correctly quoted.
 - **Plain-English error translation** — with the raw git output always one click away, never hidden.
@@ -114,9 +115,30 @@ the write itself uses an atomic create-new — so even a file that appears in th
 between the check and the write is safe. Losing a file you curated isn't undoable by anything the
 app could show you.
 
+## Publishing to GitHub
+
+Most beginners are never told that git and GitHub are two different things. The Changes tab
+says so at the moment it matters — when a project has commits and no online copy:
+
+> **Not on GitHub yet**
+> This project only exists on this computer. Create an empty repository on GitHub — no
+> README, no .gitignore — then paste its address here.
+> `[ Create on GitHub ]`  `[ Connect ]`
+
+The empty-repository warning is not decoration. A repository created with "Add a README"
+ticked already has a commit of its own, and the first push is then rejected for reasons the
+raw git message ("non-fast-forward") gives a beginner no way to decode. Both the risk and
+the recovery are spelled out — before, in the explanation, and after, in the translated
+error.
+
+**The app stops at the address.** Creating the repository for you would need a personal
+access token, and this app has no field to type one into, by design. Signing in for the
+first push is git's own credential helper, which may open a browser window — the push
+explanation says so in advance, so it arrives expected rather than alarming.
+
 ## The action set
 
-Thirteen actions, covering roughly the 90% of beginner git that doesn't involve conflicts.
+Fifteen actions, covering roughly the 90% of beginner git that doesn't involve conflicts.
 
 | Action | Command | Danger |
 |---|---|---|
@@ -133,8 +155,10 @@ Thirteen actions, covering roughly the 90% of beginner git that doesn't involve 
 | Discard file | `git restore -- <path>` | **Destructive** |
 | Undo last commit | `git reset --soft HEAD~1` | Caution |
 | Delete branch | `git branch -d <name>` | Caution |
+| Connect to GitHub | `git remote add origin <url>` | Caution |
+| Disconnect from GitHub | `git remote remove origin` | Caution |
 
-Three choices in that table are teaching decisions, not technical ones:
+Four choices in that table are teaching decisions, not technical ones:
 
 - **`pull --ff-only`, never a plain `pull`.** A beginner should never get a merge commit they
   didn't ask for and can't explain. When it can't fast-forward, it refuses — and the refusal is
@@ -145,6 +169,9 @@ Three choices in that table are teaching decisions, not technical ones:
   Creating at the current HEAD carries your changes along and can't lose anything; switching to
   an *existing* branch can collide with uncommitted work. The danger levels reflect that real
   difference.
+- **The app connects; it never creates the GitHub repository.** Creating one through the API
+  needs a personal access token, and no view in this app may contain a token field. The
+  trade is a click on github.com in exchange for a promise the app can keep absolutely.
 
 `discard-file` is the only Destructive action. That's the point: there are very few ways to lose
 work.
@@ -230,7 +257,9 @@ are *declined* rather than deferred:
   beginner and the most complex UI in the product; it deserves its own design pass rather than
   being squeezed in.
 - **A diff viewer** — the Changes tab lists *what* changed, not the contents of the change.
-- **Remote management.**
+- ~~Remote management.~~ Connecting to and disconnecting from GitHub shipped — see
+  [Publishing to GitHub](#publishing-to-github). A view for multiple or renamed remotes is
+  still deferred.
 - **Hunk-level staging — declined.** It needs a constructed patch on stdin, and `GitRunner` takes
   argv arrays only, never a constructed string. That single constraint is why quoting and
   injection defects can't occur here. It's also an expert affordance in a tool premised on the

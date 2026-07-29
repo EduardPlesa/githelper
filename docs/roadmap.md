@@ -1,7 +1,7 @@
 # GitHelper — Roadmap
 
 **Status:** living document
-**Last updated:** 2026-07-27
+**Last updated:** 2026-07-28
 
 This records what GitHelper does *not* do yet, why, and in what order those gaps should close.
 It exists so the absences read as decisions rather than oversights — and so that a decision made
@@ -58,6 +58,12 @@ not zero.
 **Remote management** additionally brushes against authentication. The app has a standing rule
 that it never handles credentials, and relies on git's own credential helper. Adding a remote is
 fine; anything that would prompt for a password must remain git's job, not the app's.
+
+**Remote management shipped first**, as `connect-remote` and `disconnect-remote`, because it
+was the half of repository setup the sibling spec left open. It confirmed the estimate above:
+two descriptors, two content files, two glossary terms, and no new UI paradigm — but it also
+needed a precondition to validate a pasted URL, which is the first time argv has carried a
+value straight from the clipboard.
 
 ### Bucket 2 — The one real architectural gap
 
@@ -135,7 +141,7 @@ them, and a beginner who genuinely needs submodules needs a colleague, not a GUI
 
 | Version | Contents | Why here |
 |---|---|---|
-| **v1.1** | Tags, stash, remote management | No new concepts; proves the descriptor model scales past the original thirteen |
+| **v1.1** | ~~Remote management~~ (shipped), tags, stash | No new concepts; proves the descriptor model scales past the original thirteen |
 | **v2** | **Operation state**, then merge and rebase | The load-bearing change everything below depends on |
 | **v2.5** | Diff viewer | Independent of v2, and a prerequisite for v3 |
 | **v3** | Guided conflict resolution | Sits on v2 + v2.5 |

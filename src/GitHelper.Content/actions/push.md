@@ -16,7 +16,8 @@ What you send becomes visible to everyone with access to the project, so it is w
 look at what is in your commits first.
 
 The first time you send, git needs to prove who you are, and it may open a browser window
-to do it. That window is git's own — this app never asks for, sees, or stores your password.
+to do it. That window is git's own — this app never asks for, sees, or stores your password
+or access token.
 
 If someone else has pushed work you do not have, git will refuse. Get their changes
 first, then send yours.

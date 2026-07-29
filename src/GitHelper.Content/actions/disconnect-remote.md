@@ -16,6 +16,6 @@ If you disconnect while work exists only on this computer, that work has no back
 connect somewhere and send again.
 
 ## undo
-Connect again with the same address. Removing the [[remote|online copy]] also removes the
+Connect again with the same address. Removing the connection also removes the
 [[upstream]] link between your branch and the branch on the server, so the first send
 afterwards sets that link up again — exactly as it did the first time.

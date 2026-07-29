@@ -26,7 +26,8 @@ A wrong address is not noticed here. Git accepts any address that looks like one
 mistake only surfaces when you try to send.
 
 Signing in happens the first time you send, not now. Git handles that itself and may open a
-browser window for it. This app never sees, asks for, or stores your password.
+browser window for it. This app never sees, asks for, or stores your password or access
+token.
 
 ## undo
 Disconnecting removes the address again. Nothing already sent is affected, and your commits

@@ -5,8 +5,8 @@ danger: caution
 terms: [remote, origin, upstream]
 ---
 ## what
-Forgets the address of this project's online copy. The nickname [[origin]] stops pointing
-anywhere, and sending or getting changes is unavailable until an address is set again.
+Forgets the address of this project's [[remote|online copy]]. The nickname [[origin]] stops
+pointing anywhere, and sending or getting changes is unavailable until an address is set again.
 
 ## risks
 Your commits are untouched: this changes an address, not history. Anything already sent

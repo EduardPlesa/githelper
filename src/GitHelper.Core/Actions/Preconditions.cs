@@ -197,16 +197,16 @@ public sealed class RequiresValidRemoteUrl : IPrecondition
 
         if (AuthorityOf(url).Contains('@'))
             return PreconditionResult.Fail(
-                "That address has a sign-in token built into it. Copy the plain address from "
-                + "the green Code button instead — this app never needs your token, and git "
-                + "asks for your sign-in itself the first time you send.");
+                "That address has a username or sign-in token built into it. Copy the plain "
+                + "address from the green Code button instead — this app never needs your "
+                + "token, and git asks for your sign-in itself the first time you send.");
 
         var segmentCount = ClonePathSegmentCount(url);
 
         if (segmentCount < 3)
             return PreconditionResult.Fail(
-                "That address stops at the site itself. Include the owner and the project "
-                + "name — copy the whole address from the green Code button.");
+                "That address has no owner and project name in it. Copy the whole address "
+                + "from the green Code button on the project's page.");
 
         if (segmentCount > 3)
             return PreconditionResult.Fail(

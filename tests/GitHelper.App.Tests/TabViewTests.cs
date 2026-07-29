@@ -178,5 +178,24 @@ public class TabViewTests
         var button = view.FindControl<Button>("DisconnectRemoteButton");
         Assert.NotNull(button);
         Assert.True(vm.HasRemote);
+        Assert.True(button!.IsEffectivelyVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task BranchesView_HidesTheDisconnectButtonWhenThereIsNoRemote()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var reader = new RepoStateReader(new GitRunner());
+        var vm = new BranchesViewModel(NewPanel());
+        vm.Update(await reader.ReadAsync(repo.Path));
+
+        var view = new BranchesView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+
+        var button = view.FindControl<Button>("DisconnectRemoteButton");
+        Assert.NotNull(button);
+        Assert.False(vm.HasRemote);
+        Assert.False(button!.IsEffectivelyVisible);
     }
 }

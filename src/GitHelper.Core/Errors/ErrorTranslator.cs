@@ -138,6 +138,12 @@ public static class ErrorTranslator
             "Git could not find that file or branch",
             "The name given does not match a file or a branch that git knows about.",
             new[] { "Check the spelling, and that the file has not been moved or deleted." }),
+
+        new("no stash entries found",
+            "That stash is no longer there",
+            "There is nothing stashed right now. It may already have been brought back, "
+            + "deleted, or removed from outside this app.",
+            new[] { "Refresh and check the list again." }),
     };
 
     public static TranslatedError? Translate(GitCommandResult result)

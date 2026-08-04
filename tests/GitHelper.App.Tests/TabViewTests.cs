@@ -81,6 +81,29 @@ public class TabViewTests
     }
 
     [AvaloniaFact]
+    public async Task ChangesView_ShowsStashRowsAndBindsTheStashMessageBox()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "changed\n");
+        await repo.GitAsync("stash", "push", "-m", "wip");
+        var reader = new RepoStateReader(new GitRunner());
+        var vm = new ChangesViewModel(NewPanel());
+        vm.Update(await reader.ReadAsync(repo.Path), null);
+
+        var view = new ChangesView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+
+        Assert.NotNull(view.FindControl<ItemsControl>("StashesHost"));
+        var box = view.FindControl<TextBox>("StashMessageBox");
+        Assert.NotNull(box);
+        Assert.Single(vm.Stashes);
+
+        box!.Text = "next";
+        Assert.Equal("next", vm.StashMessage);
+    }
+
+    [AvaloniaFact]
     public async Task HistoryView_ShowsCommitRows()
     {
         using var repo = await TestRepo.CreateAsync();

@@ -30,6 +30,7 @@ public class BranchesViewModelTests
         int ahead = 0,
         int behind = 0,
         bool hasRemote = false,
+        TagInfo[]? tags = null,
         params BranchInfo[] branches)
         => new(
             RepoRoot: @"C:\r", Branch: branch, IsDetached: isDetached, Upstream: upstream,
@@ -37,7 +38,7 @@ public class BranchesViewModelTests
             Changes: Array.Empty<FileChange>(),
             RecentCommits: Array.Empty<CommitInfo>(),
             Branches: branches.Length > 0 ? branches : new[] { new BranchInfo("main", upstream) },
-            Tags: Array.Empty<TagInfo>(),
+            Tags: tags ?? Array.Empty<TagInfo>(),
             Stashes: Array.Empty<StashInfo>());
 
     [Fact]
@@ -162,6 +163,62 @@ public class BranchesViewModelTests
         f.Branches.Update(state);
 
         Assert.Single(f.Branches.Branches);
+    }
+
+    [Fact]
+    public void Update_ListsTagsWithTheirTarget()
+    {
+        var f = NewFixture();
+
+        f.Branches.Update(State(tags: new[] { new TagInfo("v1", "abc1234") }));
+
+        var row = Assert.Single(f.Branches.Tags);
+        Assert.Equal("v1", row.Name);
+        Assert.Equal("abc1234", row.TargetLabel);
+    }
+
+    [Fact]
+    public async Task CreateTagCommand_ThenListedInTags()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var f = NewFixture();
+        f.Branches.Update(await f.Reader.ReadAsync(repo.Path));
+        f.Branches.NewTagName = "v1";
+
+        // create-tag is Safe, so ShowAndRunIfUngated runs it straight away.
+        await f.Branches.CreateTagCommand.ExecuteAsync(null);
+
+        var after = await f.Reader.ReadAsync(repo.Path);
+        Assert.Contains(after.Tags, t => t.Name == "v1");
+    }
+
+    [Fact]
+    public async Task TagDeleteCommand_ThenConfirming_RemovesIt()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("tag", "v1");
+        var f = NewFixture();
+        f.Branches.Update(await f.Reader.ReadAsync(repo.Path));
+
+        await f.Branches.Tags.Single(t => t.Name == "v1").DeleteCommand.ExecuteAsync(null);
+        await f.Panel.RunAsync();
+
+        var after = await f.Reader.ReadAsync(repo.Path);
+        Assert.DoesNotContain(after.Tags, t => t.Name == "v1");
+    }
+
+    [Fact]
+    public void OnActionCompleted_ClearsTheTagNameBoxOnlyWhenThatTagAppeared()
+    {
+        var f = NewFixture();
+        f.Branches.NewTagName = "v1";
+
+        var before = State(tags: Array.Empty<TagInfo>());
+        var after = State(tags: new[] { new TagInfo("v1", "abc1234") });
+
+        f.Branches.OnActionCompleted(OutcomeBetween(before, after));
+
+        Assert.Equal(string.Empty, f.Branches.NewTagName);
     }
 
     [Fact]

@@ -25,7 +25,9 @@ public class PreconditionTests
             RecentCommits: Enumerable.Range(0, commitCount)
                 .Select(i => new CommitInfo($"h{i}", $"h{i}", "A", DateTimeOffset.UnixEpoch, $"c{i}"))
                 .ToList(),
-            Branches: new[] { new BranchInfo("main", "origin/main"), new BranchInfo("feature", null) });
+            Branches: new[] { new BranchInfo("main", "origin/main"), new BranchInfo("feature", null) },
+            Tags: Array.Empty<TagInfo>(),
+            Stashes: Array.Empty<StashInfo>());
 
     private static ActionRequest Request(
         string? path = null, string? message = null, string? branchName = null)

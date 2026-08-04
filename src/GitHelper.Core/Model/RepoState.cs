@@ -15,7 +15,9 @@ public sealed record RepoState(
     bool HasRemote,
     IReadOnlyList<FileChange> Changes,
     IReadOnlyList<CommitInfo> RecentCommits,
-    IReadOnlyList<BranchInfo> Branches)
+    IReadOnlyList<BranchInfo> Branches,
+    IReadOnlyList<TagInfo> Tags,
+    IReadOnlyList<StashInfo> Stashes)
 {
     public IReadOnlyList<FileChange> Staged =>
         Changes.Where(c => c.IsStaged).ToList();

@@ -45,7 +45,9 @@ public sealed class RepoStateReader(IGitRunner runner)
             HasRemote: hasRemote,
             Changes: status.Changes,
             RecentCommits: commits,
-            Branches: branches);
+            Branches: branches,
+            Tags: Array.Empty<TagInfo>(),
+            Stashes: Array.Empty<StashInfo>());
     }
 
     /// <summary>Returns the repository root containing the given path, or null if there is none.</summary>

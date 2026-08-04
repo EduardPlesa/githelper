@@ -36,7 +36,9 @@ public class BranchesViewModelTests
             Ahead: ahead, Behind: behind, HasCommits: true, HasRemote: hasRemote,
             Changes: Array.Empty<FileChange>(),
             RecentCommits: Array.Empty<CommitInfo>(),
-            Branches: branches.Length > 0 ? branches : new[] { new BranchInfo("main", upstream) });
+            Branches: branches.Length > 0 ? branches : new[] { new BranchInfo("main", upstream) },
+            Tags: Array.Empty<TagInfo>(),
+            Stashes: Array.Empty<StashInfo>());
 
     [Fact]
     public async Task Update_ListsBranchesAndMarksTheCurrentOne()

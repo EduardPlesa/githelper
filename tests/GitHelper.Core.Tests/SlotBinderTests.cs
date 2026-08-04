@@ -22,7 +22,9 @@ public class SlotBinderTests
             HasRemote: upstream is not null,
             Changes: changes,
             RecentCommits: Array.Empty<CommitInfo>(),
-            Branches: Array.Empty<BranchInfo>());
+            Branches: Array.Empty<BranchInfo>(),
+            Tags: Array.Empty<TagInfo>(),
+            Stashes: Array.Empty<StashInfo>());
 
     [Fact]
     public void Bind_ProvidesBranchAndUpstream()

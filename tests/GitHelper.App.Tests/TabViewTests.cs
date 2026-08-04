@@ -125,7 +125,9 @@ public class TabViewTests
                 Ahead: 0, Behind: 0, HasCommits: true, HasRemote: false,
                 Changes: Array.Empty<GitHelper.Core.Model.FileChange>(),
                 RecentCommits: Array.Empty<GitHelper.Core.Model.CommitInfo>(),
-                Branches: Array.Empty<GitHelper.Core.Model.BranchInfo>()),
+                Branches: Array.Empty<GitHelper.Core.Model.BranchInfo>(),
+                Tags: Array.Empty<GitHelper.Core.Model.TagInfo>(),
+                Stashes: Array.Empty<GitHelper.Core.Model.StashInfo>()),
             null);
 
         var view = new ChangesView { DataContext = vm };

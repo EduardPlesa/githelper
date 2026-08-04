@@ -64,7 +64,8 @@ public class ActionCatalogTests
     {
         var state = new RepoState(
             @"C:\r", "main", false, "origin/main", 0, 0, true, true,
-            Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>());
+            Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>(),
+            Array.Empty<TagInfo>(), Array.Empty<StashInfo>());
 
         foreach (var id in new[] { "stage-file", "unstage-file", "discard-file" })
         {
@@ -81,7 +82,8 @@ public class ActionCatalogTests
     {
         var state = new RepoState(
             @"C:\r", "main", false, "origin/main", 0, 1, true, true,
-            Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>());
+            Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>(),
+            Array.Empty<TagInfo>(), Array.Empty<StashInfo>());
 
         var args = ActionCatalog.Find("pull")!.BuildArgs(state, new ActionRequest("pull"));
 
@@ -93,7 +95,8 @@ public class ActionCatalogTests
     {
         var state = new RepoState(
             @"C:\r", "main", false, null, 0, 0, true, false,
-            Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>());
+            Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>(),
+            Array.Empty<TagInfo>(), Array.Empty<StashInfo>());
 
         var args = ActionCatalog.Find("delete-branch")!
             .BuildArgs(state, new ActionRequest("delete-branch", BranchName: "feature"));
@@ -107,7 +110,8 @@ public class ActionCatalogTests
     {
         var withUpstream = new RepoState(
             @"C:\r", "main", false, "origin/main", 1, 0, true, true,
-            Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>());
+            Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>(),
+            Array.Empty<TagInfo>(), Array.Empty<StashInfo>());
         var withoutUpstream = withUpstream with { Upstream = null };
 
         Assert.DoesNotContain("--set-upstream",
@@ -268,5 +272,7 @@ public class ActionCatalogTests
         Ahead: 0, Behind: 0, HasCommits: true, HasRemote: false,
         Changes: Array.Empty<FileChange>(),
         RecentCommits: Array.Empty<CommitInfo>(),
-        Branches: Array.Empty<BranchInfo>());
+        Branches: Array.Empty<BranchInfo>(),
+        Tags: Array.Empty<TagInfo>(),
+        Stashes: Array.Empty<StashInfo>());
 }

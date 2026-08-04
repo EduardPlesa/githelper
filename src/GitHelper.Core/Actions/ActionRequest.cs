@@ -9,4 +9,6 @@ public sealed record ActionRequest(
     string? Path = null,
     string? Message = null,
     string? BranchName = null,
-    string? RemoteUrl = null);
+    string? RemoteUrl = null,
+    string? TagName = null,
+    string? StashRef = null);

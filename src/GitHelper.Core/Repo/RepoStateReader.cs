@@ -34,6 +34,14 @@ public sealed class RepoStateReader(IGitRunner runner)
         var remoteResult = await runner.RunAsync(repoPath, new[] { "remote" }, ct);
         var hasRemote = remoteResult.Success && remoteResult.StdOut.Trim().Length > 0;
 
+        var tagResult = await runner.RunAsync(
+            repoPath, new[] { "for-each-ref", "--format=" + TagParser.Format, "refs/tags/" }, ct);
+        var tags = TagParser.Parse(tagResult.StdOut);
+
+        var stashResult = await runner.RunAsync(
+            repoPath, new[] { "stash", "list", "--format=" + StashParser.Format }, ct);
+        var stashes = StashParser.Parse(stashResult.StdOut);
+
         return new RepoState(
             RepoRoot: repoPath,
             Branch: status.Branch,
@@ -46,8 +54,8 @@ public sealed class RepoStateReader(IGitRunner runner)
             Changes: status.Changes,
             RecentCommits: commits,
             Branches: branches,
-            Tags: Array.Empty<TagInfo>(),
-            Stashes: Array.Empty<StashInfo>());
+            Tags: tags,
+            Stashes: stashes);
     }
 
     /// <summary>Returns the repository root containing the given path, or null if there is none.</summary>

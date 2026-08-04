@@ -59,6 +59,51 @@ public class RepoStateReaderTests
     }
 
     [Fact]
+    public async Task ReadAsync_ReadsTags()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("tag", "v1");
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.Single(state.Tags);
+        Assert.Equal("v1", state.Tags[0].Name);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReportsNoTagsWhenNoneExist()
+    {
+        using var repo = await TestRepo.CreateAsync();
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.Empty(state.Tags);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReadsStashes()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "changed\n");
+        await repo.GitAsync("stash", "push", "-m", "wip");
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.Single(state.Stashes);
+        Assert.Contains("wip", state.Stashes[0].Message);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReportsNoStashesWhenNoneExist()
+    {
+        using var repo = await TestRepo.CreateAsync();
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.Empty(state.Stashes);
+    }
+
+    [Fact]
     public async Task ReadAsync_DetectsDetachedHead()
     {
         using var repo = await TestRepo.CreateAsync();

@@ -24,7 +24,7 @@ public class ActionCatalogTests
     }
 
     [Fact]
-    public void All_ContainsExactlyTheFifteenActions()
+    public void All_ContainsExactlyTheSeventeenActions()
     {
         var expected = new[]
         {
@@ -32,6 +32,7 @@ public class ActionCatalogTests
             "create-branch", "switch-branch", "fetch", "pull", "push",
             "discard-file", "undo-last-commit", "delete-branch",
             "connect-remote", "disconnect-remote",
+            "create-tag", "delete-tag",
         };
 
         Assert.Equal(expected.OrderBy(x => x), ActionCatalog.All.Select(a => a.Id).OrderBy(x => x));
@@ -264,6 +265,42 @@ public class ActionCatalogTests
         var disconnected = await RunActionAsync(repo, new ActionRequest("disconnect-remote"));
         Assert.False(disconnected.HasRemote);
         Assert.Empty((await repo.GitAsync("remote")).StdOut.Trim());
+    }
+
+    [Fact]
+    public void CreateTag_BuildsTagWithTheGivenName()
+    {
+        var args = ActionCatalog.Find("create-tag")!
+            .BuildArgs(MinimalState(), new ActionRequest("create-tag", TagName: "v1"));
+
+        Assert.Equal(new[] { "tag", "v1" }, args);
+    }
+
+    [Fact]
+    public void DeleteTag_BuildsTagDashD()
+    {
+        var args = ActionCatalog.Find("delete-tag")!
+            .BuildArgs(MinimalState(), new ActionRequest("delete-tag", TagName: "v1"));
+
+        Assert.Equal(new[] { "tag", "-d", "v1" }, args);
+    }
+
+    [Fact]
+    public void CreateTag_UndoesToDeleteTag()
+    {
+        Assert.Equal("delete-tag", ActionCatalog.Find("create-tag")!.UndoActionId);
+    }
+
+    [Fact]
+    public async Task CreateTag_ThenDeleteTag_RoundTripsAgainstARealRepository()
+    {
+        using var repo = await TestRepo.CreateAsync();
+
+        var tagged = await RunActionAsync(repo, new ActionRequest("create-tag", TagName: "v1"));
+        Assert.Contains(tagged.Tags, t => t.Name == "v1");
+
+        var untagged = await RunActionAsync(repo, new ActionRequest("delete-tag", TagName: "v1"));
+        Assert.DoesNotContain(untagged.Tags, t => t.Name == "v1");
     }
 
     /// <summary>A minimal state for descriptors that read nothing out of it.</summary>

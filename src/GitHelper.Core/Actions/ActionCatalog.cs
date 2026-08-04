@@ -148,6 +148,25 @@ public static class ActionCatalog
             Danger: Danger.Caution,
             BuildArgs: (_, _) => new[] { "remote", "remove", "origin" },
             Preconditions: new IPrecondition[] { new RequiresRemote() }),
+
+        new GitAction(
+            Id: "create-tag",
+            Title: "Tag this point",
+            Danger: Danger.Safe,
+            BuildArgs: (_, r) => new[] { "tag", r.TagName! },
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresTagName(), new RequiresCommits(), new RequiresTagDoesNotExist(),
+            },
+            UndoActionId: "delete-tag"),
+
+        new GitAction(
+            Id: "delete-tag",
+            Title: "Delete tag",
+            Danger: Danger.Caution,
+            // Unlike branch -d, git has no refusal safety net here — tag -d always succeeds.
+            BuildArgs: (_, r) => new[] { "tag", "-d", r.TagName! },
+            Preconditions: new IPrecondition[] { new RequiresTagName() }),
     };
 
     private static readonly Dictionary<string, GitAction> ById =

@@ -46,7 +46,7 @@ The deferred list is not one decision. It is four, and they cost wildly differen
 
 ### Bucket 1 — More of the same
 
-**Tags, stash, cherry-pick (clean), ~~remote management~~ (shipped).**
+**~~Tags, stash~~ (shipped), cherry-pick (clean), ~~remote management~~ (shipped).**
 
 These fit the existing model exactly: one descriptor plus one content file, no new flow.
 
@@ -64,6 +64,13 @@ was the half of repository setup the sibling spec left open. It confirmed the es
 two descriptors, two content files, two glossary terms, and no new UI paradigm — but it also
 needed a precondition to validate a pasted URL, which is the first time argv has carried a
 value straight from the clipboard.
+
+**Tags and stash shipped next**, closing out v1.1. Both confirmed the "budget a small tab, not
+zero" caveat above: `RepoState` needed two new lists (`Tags`, `Stashes`), two new parsers, and a
+new section embedded in an existing tab rather than a new one — Tags beside Branches, Stash
+beside Changes. Stash also confirmed the "an action is atomic" assumption is worth defending
+deliberately: `stash-pop` and `stash-apply` are only offered against a clean working tree, so
+v1.1 never had to invent a shape for a conflicting pop.
 
 ### Bucket 2 — The one real architectural gap
 
@@ -141,7 +148,7 @@ them, and a beginner who genuinely needs submodules needs a colleague, not a GUI
 
 | Version | Contents | Why here |
 |---|---|---|
-| **v1.1** | ~~Remote management~~ (shipped), tags, stash | No new concepts; proves the descriptor model scales past the original thirteen |
+| **v1.1** | ~~Remote management, tags, stash~~ (all shipped) | No new concepts; proved the descriptor model scales past the original thirteen |
 | **v2** | **Operation state**, then merge and rebase | The load-bearing change everything below depends on |
 | **v2.5** | Diff viewer | Independent of v2, and a prerequisite for v3 |
 | **v3** | Guided conflict resolution | Sits on v2 + v2.5 |

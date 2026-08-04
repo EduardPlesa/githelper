@@ -165,6 +165,28 @@ public class TabViewTests
     }
 
     [AvaloniaFact]
+    public async Task BranchesView_ShowsTagRowsAndBindsTheNewTagNameBox()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("tag", "v1");
+        var reader = new RepoStateReader(new GitRunner());
+        var vm = new BranchesViewModel(NewPanel());
+        vm.Update(await reader.ReadAsync(repo.Path));
+
+        var view = new BranchesView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+
+        Assert.NotNull(view.FindControl<ItemsControl>("TagsHost"));
+        var box = view.FindControl<TextBox>("NewTagNameBox");
+        Assert.NotNull(box);
+        Assert.Single(vm.Tags);
+
+        box!.Text = "v2";
+        Assert.Equal("v2", vm.NewTagName);
+    }
+
+    [AvaloniaFact]
     public async Task BranchesView_ShowsTheDisconnectButtonWhenThereIsARemote()
     {
         using var repo = await TestRepo.CreateAsync();

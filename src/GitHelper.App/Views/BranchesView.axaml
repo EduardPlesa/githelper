@@ -61,6 +61,31 @@
         </ItemsControl>
       </StackPanel>
 
+      <!-- Tags: a second kind of ref, alongside branches rather than a tab of its own. -->
+      <StackPanel Spacing="6">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Name="NewTagNameBox"
+                   Text="{Binding NewTagName, Mode=TwoWay}"
+                   Watermark="Name for a tag on the current commit" />
+          <Button Grid.Column="1" Content="Tag this point"
+                  Command="{Binding CreateTagCommand}" Margin="8,0,0,0" />
+        </Grid>
+        <TextBlock Text="Tags" FontWeight="Bold" />
+        <ItemsControl Name="TagsHost" ItemsSource="{Binding Tags}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:TagRowViewModel">
+              <Grid ColumnDefinitions="*,Auto" Margin="0,3">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding TargetLabel}" Opacity="0.6" FontSize="12" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Delete" Command="{Binding DeleteCommand}" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+
     </StackPanel>
   </ScrollViewer>
 </UserControl>

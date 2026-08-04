@@ -37,11 +37,14 @@ public sealed partial class ChangesViewModel : ViewModelBase
         CreateGitignoreCommand = new AsyncRelayCommand(CreateGitignoreAsync);
         ConnectRemoteCommand = new AsyncRelayCommand(ConnectRemoteAsync);
         OpenGitHubCommand = new RelayCommand(() => _browser?.Open(NewRepositoryUrl));
+        StashCommand = new AsyncRelayCommand(StashAsync);
     }
 
     public ObservableCollection<FileChangeRowViewModel> Staged { get; } = new();
 
     public ObservableCollection<FileChangeRowViewModel> Unstaged { get; } = new();
+
+    public ObservableCollection<StashRowViewModel> Stashes { get; } = new();
 
     [ObservableProperty] private string _commitMessage = string.Empty;
     [ObservableProperty] private bool _hasStagedChanges;
@@ -51,6 +54,8 @@ public sealed partial class ChangesViewModel : ViewModelBase
     [ObservableProperty] private bool _hasGitignoreOffer;
     [ObservableProperty] private bool _hasNoRemoteOffer;
     [ObservableProperty] private string _remoteUrl = string.Empty;
+    [ObservableProperty] private string _stashMessage = string.Empty;
+    [ObservableProperty] private bool _canStash;
 
     public IAsyncRelayCommand StageAllCommand { get; }
 
@@ -80,6 +85,12 @@ public sealed partial class ChangesViewModel : ViewModelBase
     /// </summary>
     public IRelayCommand OpenGitHubCommand { get; }
 
+    /// <summary>
+    /// Safe, so it runs on click rather than waiting for an inline Confirm — reversible via
+    /// its own undo action (stash-pop), the same tier as stage-all/unstage-all.
+    /// </summary>
+    public IAsyncRelayCommand StashCommand { get; }
+
     public void Update(RepoState state, FolderState? folder)
     {
         _repoPath = state.RepoRoot;
@@ -95,8 +106,13 @@ public sealed partial class ChangesViewModel : ViewModelBase
         foreach (var change in state.Unstaged.Concat(state.Untracked))
             Unstaged.Add(new FileChangeRowViewModel(change, staged: false, InvokeWithPathAsync));
 
+        Stashes.Clear();
+        foreach (var stash in state.Stashes)
+            Stashes.Add(new StashRowViewModel(stash, InvokeWithStashAsync));
+
         HasStagedChanges = Staged.Count > 0;
         HasAnyChanges = Staged.Count > 0 || Unstaged.Count > 0;
+        CanStash = state.HasUncommittedChanges;
 
         UpdatePushPrompt(state);
 
@@ -163,6 +179,9 @@ public sealed partial class ChangesViewModel : ViewModelBase
         // rejected address stays in the box for the user to correct.
         if (outcome.Success && !outcome.Before.HasRemote && outcome.After.HasRemote)
             RemoteUrl = string.Empty;
+
+        if (outcome.Success && outcome.After.Stashes.Count > outcome.Before.Stashes.Count)
+            StashMessage = string.Empty;
     }
 
     private Task InvokeWithPathAsync(string actionId, string path) => InvokeAsync(actionId, path);
@@ -193,6 +212,21 @@ public sealed partial class ChangesViewModel : ViewModelBase
             ? Task.CompletedTask
             : _explain.ShowAndRunIfUngatedAsync(
                 _repoPath, new ActionRequest("connect-remote", RemoteUrl: RemoteUrl));
+
+    private Task InvokeWithStashAsync(string actionId, string stashRef)
+        => _repoPath is null
+            ? Task.CompletedTask
+            : _explain.ShowAndRunIfUngatedAsync(
+                _repoPath, new ActionRequest(actionId, StashRef: stashRef));
+
+    private Task StashAsync()
+        => _repoPath is null
+            ? Task.CompletedTask
+            : _explain.ShowAndRunIfUngatedAsync(
+                _repoPath,
+                new ActionRequest(
+                    "stash",
+                    Message: string.IsNullOrWhiteSpace(StashMessage) ? null : StashMessage));
 
     private Task CreateGitignoreAsync()
         => _folder is null

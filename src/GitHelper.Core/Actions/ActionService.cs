@@ -29,7 +29,7 @@ public sealed class ActionService(
         // argv is: a rejected value is the user's mistake echoed back at them, and one of
         // the things this rejects is a sign-in token.
         var slots = SlotBinder.Bind(
-            state, request.Path, request.BranchName,
+            state, request.Path, request.BranchName, request.TagName,
             blockers.Count == 0 ? request.RemoteUrl : null);
 
         // argv is only built when it can be built; a missing path would throw otherwise.

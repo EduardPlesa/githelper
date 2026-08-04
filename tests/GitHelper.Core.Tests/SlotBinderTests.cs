@@ -69,6 +69,20 @@ public class SlotBinderTests
     }
 
     [Fact]
+    public void Bind_IncludesTagName()
+    {
+        var values = SlotBinder.Bind(State(), tagName: "v1");
+
+        Assert.Equal("v1", values["tagName"]);
+    }
+
+    [Fact]
+    public void Bind_DescribesAMissingTagNamePlainly()
+    {
+        Assert.Equal("the tag", SlotBinder.Bind(State())["tagName"]);
+    }
+
+    [Fact]
     public void Bind_ListsStagedFilesAndTruncatesLongLists()
     {
         var many = Enumerable.Range(1, 10)

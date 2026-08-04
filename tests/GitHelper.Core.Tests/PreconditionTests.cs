@@ -11,6 +11,7 @@ public class PreconditionTests
         bool hasRemote = true,
         bool hasCommits = true,
         int commitCount = 2,
+        TagInfo[]? tags = null,
         params FileChange[] changes)
         => new(
             RepoRoot: @"C:\repos\demo",
@@ -26,12 +27,13 @@ public class PreconditionTests
                 .Select(i => new CommitInfo($"h{i}", $"h{i}", "A", DateTimeOffset.UnixEpoch, $"c{i}"))
                 .ToList(),
             Branches: new[] { new BranchInfo("main", "origin/main"), new BranchInfo("feature", null) },
-            Tags: Array.Empty<TagInfo>(),
+            Tags: tags ?? new[] { new TagInfo("v1", "abc1234") },
             Stashes: Array.Empty<StashInfo>());
 
     private static ActionRequest Request(
-        string? path = null, string? message = null, string? branchName = null)
-        => new("test", path, message, branchName);
+        string? path = null, string? message = null, string? branchName = null,
+        string? tagName = null, string? stashRef = null)
+        => new("test", path, message, branchName, TagName: tagName, StashRef: stashRef);
 
     [Fact]
     public void RequiresPath_FailsWhenNoPathGiven()
@@ -153,6 +155,44 @@ public class PreconditionTests
     }
 
     [Fact]
+    public void RequiresTagName_FailsWhenNoTagNameGiven()
+    {
+        Assert.False(new RequiresTagName().Evaluate(State(), Request()).Satisfied);
+        Assert.True(new RequiresTagName().Evaluate(State(), Request(tagName: "v2")).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresTagDoesNotExist_RefusesADuplicateName()
+    {
+        Assert.False(
+            new RequiresTagDoesNotExist().Evaluate(State(), Request(tagName: "v1")).Satisfied);
+        Assert.True(
+            new RequiresTagDoesNotExist().Evaluate(State(), Request(tagName: "v2")).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresUncommittedChanges_FailsOnACleanTree()
+    {
+        Assert.False(new RequiresUncommittedChanges().Evaluate(State(), Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresUncommittedChanges_PassesWhenSomethingIsUnstaged()
+    {
+        var dirty = State(changes: new FileChange("a.txt", null, ChangeKind.None, ChangeKind.Modified));
+
+        Assert.True(new RequiresUncommittedChanges().Evaluate(dirty, Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresStashRef_FailsWhenNoStashIsPicked()
+    {
+        Assert.False(new RequiresStashRef().Evaluate(State(), Request()).Satisfied);
+        Assert.True(
+            new RequiresStashRef().Evaluate(State(), Request(stashRef: "stash@{0}")).Satisfied);
+    }
+
+    [Fact]
     public void RequiresCommits_FailsInARepositoryWithNoCommitsYet()
     {
         Assert.False(new RequiresCommits().Evaluate(State(hasCommits: false), Request()).Satisfied);
@@ -170,13 +210,15 @@ public class PreconditionTests
             new RequiresCommits(), new RequiresParentCommit(), new RequiresStagedChanges(),
             new RequiresRemote(), new RequiresUpstream(), new RequiresNoUncommittedChanges(),
             new RequiresNotCurrentBranch(), new RequiresBranchDoesNotExist(),
+            new RequiresTagDoesNotExist(), new RequiresStashRef(),
         };
 
         // A state and request chosen so that every precondition above fails.
         var failing = State(
             branch: "main", upstream: null, hasRemote: false, hasCommits: false, commitCount: 1,
+            tags: new[] { new TagInfo("main", "abc1234") },
             changes: new FileChange("a.txt", null, ChangeKind.None, ChangeKind.Modified));
-        var request = Request(branchName: "main");
+        var request = Request(branchName: "main", tagName: "main");
 
         foreach (var precondition in all)
         {

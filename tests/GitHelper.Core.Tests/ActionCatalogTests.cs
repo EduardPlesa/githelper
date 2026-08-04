@@ -24,7 +24,7 @@ public class ActionCatalogTests
     }
 
     [Fact]
-    public void All_ContainsExactlyTheSeventeenActions()
+    public void All_ContainsExactlyTheTwentyOneActions()
     {
         var expected = new[]
         {
@@ -33,17 +33,20 @@ public class ActionCatalogTests
             "discard-file", "undo-last-commit", "delete-branch",
             "connect-remote", "disconnect-remote",
             "create-tag", "delete-tag",
+            "stash", "stash-pop", "stash-apply", "stash-drop",
         };
 
         Assert.Equal(expected.OrderBy(x => x), ActionCatalog.All.Select(a => a.Id).OrderBy(x => x));
     }
 
     [Fact]
-    public void DiscardFile_IsTheOnlyDestructiveActionInV1()
+    public void DiscardFileAndStashDrop_AreTheOnlyDestructiveActions()
     {
         var destructive = ActionCatalog.All.Where(a => a.Danger == Danger.Destructive).Select(a => a.Id);
 
-        Assert.Equal(new[] { "discard-file" }, destructive);
+        Assert.Equal(
+            new[] { "discard-file", "stash-drop" }.OrderBy(x => x),
+            destructive.OrderBy(x => x));
     }
 
     [Fact]
@@ -301,6 +304,86 @@ public class ActionCatalogTests
 
         var untagged = await RunActionAsync(repo, new ActionRequest("delete-tag", TagName: "v1"));
         Assert.DoesNotContain(untagged.Tags, t => t.Name == "v1");
+    }
+
+    [Fact]
+    public void Stash_BuildsStashPushWithoutAMessageWhenNoneGiven()
+    {
+        var args = ActionCatalog.Find("stash")!.BuildArgs(MinimalState(), new ActionRequest("stash"));
+
+        Assert.Equal(new[] { "stash", "push" }, args);
+    }
+
+    [Fact]
+    public void Stash_BuildsStashPushWithAMessageWhenOneIsGiven()
+    {
+        var args = ActionCatalog.Find("stash")!
+            .BuildArgs(MinimalState(), new ActionRequest("stash", Message: "wip"));
+
+        Assert.Equal(new[] { "stash", "push", "-m", "wip" }, args);
+    }
+
+    [Fact]
+    public void StashPop_BuildsStashPopWithTheGivenRef()
+    {
+        var args = ActionCatalog.Find("stash-pop")!
+            .BuildArgs(MinimalState(), new ActionRequest("stash-pop", StashRef: "stash@{0}"));
+
+        Assert.Equal(new[] { "stash", "pop", "stash@{0}" }, args);
+    }
+
+    [Fact]
+    public void StashApply_BuildsStashApplyWithTheGivenRef()
+    {
+        var args = ActionCatalog.Find("stash-apply")!
+            .BuildArgs(MinimalState(), new ActionRequest("stash-apply", StashRef: "stash@{0}"));
+
+        Assert.Equal(new[] { "stash", "apply", "stash@{0}" }, args);
+    }
+
+    [Fact]
+    public void StashDrop_BuildsStashDropWithTheGivenRef()
+    {
+        var args = ActionCatalog.Find("stash-drop")!
+            .BuildArgs(MinimalState(), new ActionRequest("stash-drop", StashRef: "stash@{0}"));
+
+        Assert.Equal(new[] { "stash", "drop", "stash@{0}" }, args);
+    }
+
+    [Fact]
+    public void Stash_UndoesToStashPop()
+    {
+        Assert.Equal("stash-pop", ActionCatalog.Find("stash")!.UndoActionId);
+    }
+
+    [Fact]
+    public async Task Stash_ThenStashPop_RoundTripsAgainstARealRepository()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "changed\n");
+
+        var stashed = await RunActionAsync(repo, new ActionRequest("stash", Message: "wip"));
+        Assert.Single(stashed.Stashes);
+        Assert.False(stashed.HasUncommittedChanges);
+
+        var popped = await RunActionAsync(
+            repo, new ActionRequest("stash-pop", StashRef: stashed.Stashes[0].Ref));
+        Assert.Empty(popped.Stashes);
+        Assert.True(popped.HasUncommittedChanges);
+    }
+
+    [Fact]
+    public async Task Stash_ThenStashDrop_RemovesTheEntryWithoutRestoringChanges()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "changed\n");
+
+        var stashed = await RunActionAsync(repo, new ActionRequest("stash", Message: "wip"));
+
+        var dropped = await RunActionAsync(
+            repo, new ActionRequest("stash-drop", StashRef: stashed.Stashes[0].Ref));
+        Assert.Empty(dropped.Stashes);
+        Assert.False(dropped.HasUncommittedChanges);
     }
 
     /// <summary>A minimal state for descriptors that read nothing out of it.</summary>

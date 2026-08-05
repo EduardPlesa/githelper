@@ -175,9 +175,16 @@ public sealed class RequiresUncommittedChanges : IPrecondition
 public sealed class RequiresStashRef : IPrecondition
 {
     public PreconditionResult Evaluate(RepoState state, ActionRequest request)
-        => string.IsNullOrWhiteSpace(request.StashRef)
-            ? PreconditionResult.Fail("Pick a stash first — this action works on one at a time.")
-            : PreconditionResult.Ok;
+    {
+        if (string.IsNullOrWhiteSpace(request.StashRef))
+            return PreconditionResult.Fail("Pick a stash first — this action works on one at a time.");
+
+        return state.Stashes.Any(s => string.Equals(s.Ref, request.StashRef, StringComparison.Ordinal))
+            ? PreconditionResult.Ok
+            : PreconditionResult.Fail(
+                "That stash is no longer there. It may already have been brought back, "
+                + "deleted, or removed from outside this app.");
+    }
 }
 
 public sealed class RequiresNoRemote : IPrecondition

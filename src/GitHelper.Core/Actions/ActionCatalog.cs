@@ -153,7 +153,7 @@ public static class ActionCatalog
             Id: "create-tag",
             Title: "Tag this point",
             Danger: Danger.Safe,
-            BuildArgs: (_, r) => new[] { "tag", r.TagName! },
+            BuildArgs: (_, r) => new[] { "tag", "--", r.TagName! },
             Preconditions: new IPrecondition[]
             {
                 new RequiresTagName(), new RequiresCommits(), new RequiresTagDoesNotExist(),
@@ -165,7 +165,7 @@ public static class ActionCatalog
             Title: "Delete tag",
             Danger: Danger.Caution,
             // Unlike branch -d, git has no refusal safety net here — tag -d always succeeds.
-            BuildArgs: (_, r) => new[] { "tag", "-d", r.TagName! },
+            BuildArgs: (_, r) => new[] { "tag", "-d", "--", r.TagName! },
             Preconditions: new IPrecondition[] { new RequiresTagName() }),
 
         new GitAction(
@@ -175,7 +175,7 @@ public static class ActionCatalog
             BuildArgs: (_, r) => string.IsNullOrWhiteSpace(r.Message)
                 ? new[] { "stash", "push" }
                 : new[] { "stash", "push", "-m", r.Message! },
-            Preconditions: new IPrecondition[] { new RequiresUncommittedChanges() },
+            Preconditions: new IPrecondition[] { new RequiresCommits(), new RequiresUncommittedChanges() },
             UndoActionId: "stash-pop"),
 
         new GitAction(

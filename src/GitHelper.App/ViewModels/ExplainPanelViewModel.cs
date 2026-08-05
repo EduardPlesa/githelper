@@ -333,14 +333,21 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     {
         Danger.Safe => false,
 
-        // Never suppressible: this is the one action that can permanently lose work.
+        // Never suppressible: these actions can permanently lose work.
         Danger.Destructive => true,
 
         _ => !_settings.Load().SuppressedExplanations.Contains(actionId),
     };
 
     /// <summary>The consequence sentence shown in the destructive modal, with real values.</summary>
-    private string BuildConsequence()
+    private string BuildConsequence() => _request?.ActionId switch
+    {
+        "stash-drop" => "This permanently deletes this set of stashed changes. "
+                         + "Once dropped, git cannot bring it back.",
+        _ => BuildDiscardFileConsequence(),
+    };
+
+    private string BuildDiscardFileConsequence()
     {
         var path = _slots.TryGetValue("path", out var p) ? p : "this file";
         return $"This permanently deletes your unsaved edits to {path}. "

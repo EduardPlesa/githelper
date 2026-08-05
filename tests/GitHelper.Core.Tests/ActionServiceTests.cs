@@ -1,6 +1,7 @@
 using GitHelper.Core.Actions;
 using GitHelper.Core.Content;
 using GitHelper.Core.Git;
+using GitHelper.Core.Model;
 using GitHelper.Core.Repo;
 
 namespace GitHelper.Core.Tests;
@@ -146,6 +147,35 @@ public class ActionServiceTests
         Assert.False(preview.CanRun);
         Assert.DoesNotContain(
             preview.Slots.Values, value => value.Contains("ghp_exampletoken", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RunAsync_RollsBackAStashPopThatConflictsInsteadOfLeavingAHalfFinishedMerge()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "set aside\n");
+        await repo.GitAsync("stash", "push", "-q", "-m", "wip");
+
+        // HEAD moves on the same line after the stash was taken, so popping against a clean
+        // tree still conflicts — the precondition only rules out unsaved edits, not this.
+        repo.WriteFile("README.md", "moved on\n");
+        await repo.GitAsync("commit", "-a", "-q", "-m", "moved on");
+
+        var beforePop = await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path);
+        var stashRef = beforePop.Stashes.Single().Ref;
+
+        var outcome = await NewService().RunAsync(
+            repo.Path, new ActionRequest("stash-pop", StashRef: stashRef));
+
+        Assert.False(outcome.Success);
+
+        var after = await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path);
+        Assert.DoesNotContain(
+            after.Changes,
+            c => c.IndexChange == ChangeKind.Unmerged || c.WorkTreeChange == ChangeKind.Unmerged);
+
+        var stashList = await repo.GitAsync("stash", "list");
+        Assert.Contains("wip", stashList.StdOut);
     }
 
     [Fact]

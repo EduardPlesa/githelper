@@ -276,7 +276,7 @@ public class ActionCatalogTests
         var args = ActionCatalog.Find("create-tag")!
             .BuildArgs(MinimalState(), new ActionRequest("create-tag", TagName: "v1"));
 
-        Assert.Equal(new[] { "tag", "v1" }, args);
+        Assert.Equal(new[] { "tag", "--", "v1" }, args);
     }
 
     [Fact]
@@ -285,7 +285,7 @@ public class ActionCatalogTests
         var args = ActionCatalog.Find("delete-tag")!
             .BuildArgs(MinimalState(), new ActionRequest("delete-tag", TagName: "v1"));
 
-        Assert.Equal(new[] { "tag", "-d", "v1" }, args);
+        Assert.Equal(new[] { "tag", "-d", "--", "v1" }, args);
     }
 
     [Fact]

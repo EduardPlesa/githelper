@@ -95,6 +95,7 @@ public class ChangesStashTests
         Assert.Equal(1, f.Confirmations.CallCount);
         var after = await reader.ReadAsync(repo.Path);
         Assert.Empty(after.Stashes);
+        Assert.Contains("stashed", f.Confirmations.LastConsequence!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

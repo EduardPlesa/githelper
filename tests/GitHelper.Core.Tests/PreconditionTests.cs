@@ -12,6 +12,7 @@ public class PreconditionTests
         bool hasCommits = true,
         int commitCount = 2,
         TagInfo[]? tags = null,
+        StashInfo[]? stashes = null,
         params FileChange[] changes)
         => new(
             RepoRoot: @"C:\repos\demo",
@@ -28,7 +29,7 @@ public class PreconditionTests
                 .ToList(),
             Branches: new[] { new BranchInfo("main", "origin/main"), new BranchInfo("feature", null) },
             Tags: tags ?? new[] { new TagInfo("v1", "abc1234") },
-            Stashes: Array.Empty<StashInfo>());
+            Stashes: stashes ?? Array.Empty<StashInfo>());
 
     private static ActionRequest Request(
         string? path = null, string? message = null, string? branchName = null,
@@ -187,9 +188,24 @@ public class PreconditionTests
     [Fact]
     public void RequiresStashRef_FailsWhenNoStashIsPicked()
     {
-        Assert.False(new RequiresStashRef().Evaluate(State(), Request()).Satisfied);
+        var withStash = State(stashes: new[] { new StashInfo("stash@{0}", "wip") });
+
+        Assert.False(new RequiresStashRef().Evaluate(withStash, Request()).Satisfied);
         Assert.True(
-            new RequiresStashRef().Evaluate(State(), Request(stashRef: "stash@{0}")).Satisfied);
+            new RequiresStashRef().Evaluate(withStash, Request(stashRef: "stash@{0}")).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresStashRef_FailsWhenTheRefNoLongerNamesAStash()
+    {
+        // Stash refs are positional and shift after any pop/drop, so a stale snapshot can
+        // point at an entry that is no longer there.
+        var withStash = State(stashes: new[] { new StashInfo("stash@{0}", "wip") });
+
+        var result = new RequiresStashRef().Evaluate(withStash, Request(stashRef: "stash@{1}"));
+
+        Assert.False(result.Satisfied);
+        Assert.Contains("no longer", result.Message!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

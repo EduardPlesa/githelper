@@ -79,6 +79,15 @@ public sealed class ActionService(
 
         var args = action.BuildArgs(before, request);
         var result = await runner.RunAsync(repoPath, args, ct);
+
+        // A stash pop/apply is a three-way merge against the commit the stash was taken
+        // from, so it can still conflict even against a clean tree if HEAD has moved since —
+        // the precondition only rules out unsaved edits, not that. The precondition did prove
+        // the tree was clean immediately before this ran, so a hard reset restores exactly
+        // that state; the stash entry survives, because git only drops it on a clean merge.
+        if (!result.Success && IsStashMergeConflict(action.Id, result))
+            await runner.RunAsync(repoPath, new[] { "reset", "--hard" }, ct);
+
         var after = await reader.ReadAsync(repoPath, ct);
 
         return new ActionOutcome(
@@ -90,6 +99,10 @@ public sealed class ActionService(
             After: after,
             Blockers: Array.Empty<PreconditionResult>());
     }
+
+    private static bool IsStashMergeConflict(string actionId, GitCommandResult result)
+        => (actionId == "stash-pop" || actionId == "stash-apply")
+           && (result.StdErr + result.StdOut).Contains("CONFLICT", StringComparison.Ordinal);
 
     private static GitAction Resolve(string actionId)
         => ActionCatalog.Find(actionId)

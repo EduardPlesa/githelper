@@ -69,8 +69,11 @@ value straight from the clipboard.
 zero" caveat above: `RepoState` needed two new lists (`Tags`, `Stashes`), two new parsers, and a
 new section embedded in an existing tab rather than a new one — Tags beside Branches, Stash
 beside Changes. Stash also confirmed the "an action is atomic" assumption is worth defending
-deliberately: `stash-pop` and `stash-apply` are only offered against a clean working tree, so
-v1.1 never had to invent a shape for a conflicting pop.
+deliberately: `stash-pop` and `stash-apply` are only offered against a clean working tree, which
+rules out landing on top of unsaved edits, but not a clash with commits made since the stash was
+set aside — a clean tree does nothing to prevent that. v1.1 catches that case rather than
+inventing a shape for it: it rolls the repository back to the clean state the precondition just
+proved it was in, and leaves the stash in place.
 
 ### Bucket 2 — The one real architectural gap
 

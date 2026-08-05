@@ -14,7 +14,9 @@ the shelf.
 
 ## risks
 Only offered when your [[working-directory|working directory]] is clean, so this can never
-land on top of other unsaved edits and conflict with them.
+land on top of other unsaved edits. It can still clash with commits made since the changes
+were set aside — if that happens, this app puts your files back exactly as they were and
+keeps the stash, rather than leaving you with a half-finished merge.
 
 ## undo
 There is no undo button for this specific step. Deleting the stash afterwards removes the

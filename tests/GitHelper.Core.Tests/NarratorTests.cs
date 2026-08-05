@@ -17,7 +17,9 @@ public class NarratorTests
             HasRemote: true,
             Changes: changes,
             RecentCommits: commits ?? Array.Empty<CommitInfo>(),
-            Branches: Array.Empty<BranchInfo>());
+            Branches: Array.Empty<BranchInfo>(),
+            Tags: Array.Empty<TagInfo>(),
+            Stashes: Array.Empty<StashInfo>());
 
     private static CommitInfo Commit(string hash, string subject)
         => new(hash + "0000", hash, "Test User", DateTimeOffset.UnixEpoch, subject);

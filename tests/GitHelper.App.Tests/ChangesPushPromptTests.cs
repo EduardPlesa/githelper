@@ -44,7 +44,9 @@ public class ChangesPushPromptTests
             HasRemote: hasRemote,
             Changes: Array.Empty<FileChange>(),
             RecentCommits: Array.Empty<CommitInfo>(),
-            Branches: Array.Empty<BranchInfo>());
+            Branches: Array.Empty<BranchInfo>(),
+            Tags: Array.Empty<TagInfo>(),
+            Stashes: Array.Empty<StashInfo>());
 
     [Fact]
     public void StaysHiddenWhenTheBranchIsInStepWithTheServer()

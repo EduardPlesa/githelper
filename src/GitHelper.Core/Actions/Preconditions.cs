@@ -146,6 +146,47 @@ public sealed class RequiresBranchDoesNotExist : IPrecondition
             : PreconditionResult.Ok;
 }
 
+public sealed class RequiresTagName : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+        => string.IsNullOrWhiteSpace(request.TagName)
+            ? PreconditionResult.Fail("Type a name for the tag.")
+            : PreconditionResult.Ok;
+}
+
+public sealed class RequiresTagDoesNotExist : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+        => state.Tags.Any(t => string.Equals(t.Name, request.TagName, StringComparison.Ordinal))
+            ? PreconditionResult.Fail(
+                $"A tag called '{request.TagName}' already exists. Pick a different name.")
+            : PreconditionResult.Ok;
+}
+
+public sealed class RequiresUncommittedChanges : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+        => state.HasUncommittedChanges
+            ? PreconditionResult.Ok
+            : PreconditionResult.Fail(
+                "There is nothing to set aside — nothing has changed since your last commit.");
+}
+
+public sealed class RequiresStashRef : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.StashRef))
+            return PreconditionResult.Fail("Pick a stash first — this action works on one at a time.");
+
+        return state.Stashes.Any(s => string.Equals(s.Ref, request.StashRef, StringComparison.Ordinal))
+            ? PreconditionResult.Ok
+            : PreconditionResult.Fail(
+                "That stash is no longer there. It may already have been brought back, "
+                + "deleted, or removed from outside this app.");
+    }
+}
+
 public sealed class RequiresNoRemote : IPrecondition
 {
     public PreconditionResult Evaluate(RepoState state, ActionRequest request)

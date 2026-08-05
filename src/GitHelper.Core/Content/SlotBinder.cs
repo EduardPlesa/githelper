@@ -16,13 +16,14 @@ public static class SlotBinder
     {
         "branch", "upstream", "ahead", "behind",
         "stagedCount", "unstagedCount", "untrackedCount",
-        "stagedFileList", "path", "branchName", "repoName", "remoteUrl",
+        "stagedFileList", "path", "branchName", "repoName", "remoteUrl", "tagName",
     };
 
     public static IReadOnlyDictionary<string, string> Bind(
         RepoState state,
         string? path = null,
         string? branchName = null,
+        string? tagName = null,
         string? remoteUrl = null)
     {
         return new Dictionary<string, string>(StringComparer.Ordinal)
@@ -37,6 +38,7 @@ public static class SlotBinder
             ["stagedFileList"] = Summarise(state.Staged.Select(c => c.Path)),
             ["path"] = path ?? "this file",
             ["branchName"] = branchName ?? "the branch",
+            ["tagName"] = tagName ?? "the tag",
             ["repoName"] = new DirectoryInfo(state.RepoRoot).Name,
             // Described rather than blank when absent: the panel previews connect-remote
             // before anything has been typed.

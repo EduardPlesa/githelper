@@ -57,6 +57,34 @@
           </ItemsControl>
         </StackPanel>
 
+        <!-- Stash: a shelf for changes you are not ready to commit, folded into this tab
+             rather than a tab of its own because it acts on the same changes shown above. -->
+        <StackPanel Spacing="6">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBox Name="StashMessageBox"
+                     Text="{Binding StashMessage, Mode=TwoWay}"
+                     Watermark="Describe what you're setting aside (optional)" />
+            <Button Grid.Column="1" Content="Set aside"
+                    Command="{Binding StashCommand}" IsEnabled="{Binding CanStash}"
+                    Margin="8,0,0,0" />
+          </Grid>
+          <TextBlock Text="Stashed" FontWeight="Bold" />
+          <ItemsControl Name="StashesHost" ItemsSource="{Binding Stashes}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:StashRowViewModel">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,3">
+                  <TextBlock Text="{Binding Message}" TextTrimming="CharacterEllipsis" />
+                  <Button Grid.Column="1" Content="Bring back" Command="{Binding PopCommand}" />
+                  <Button Grid.Column="2" Content="Copy back" Command="{Binding ApplyCommand}"
+                          Margin="6,0,0,0" />
+                  <Button Grid.Column="3" Content="Delete" Command="{Binding DropCommand}"
+                          Margin="6,0,0,0" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
       </StackPanel>
     </ScrollViewer>
 

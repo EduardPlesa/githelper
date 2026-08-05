@@ -1,6 +1,7 @@
 using GitHelper.Core.Content;
 using GitHelper.Core.Errors;
 using GitHelper.Core.Git;
+using GitHelper.Core.Model;
 using GitHelper.Core.Repo;
 
 namespace GitHelper.Core.Actions;
@@ -83,12 +84,44 @@ public sealed class ActionService(
         // A stash pop/apply is a three-way merge against the commit the stash was taken
         // from, so it can still conflict even against a clean tree if HEAD has moved since —
         // the precondition only rules out unsaved edits, not that. The precondition did prove
-        // the tree was clean immediately before this ran, so a hard reset restores exactly
-        // that state; the stash entry survives, because git only drops it on a clean merge.
+        // the tree was clean immediately before this ran, so a hard reset should restore
+        // exactly that state; the stash entry survives, because git only drops it on a clean
+        // merge. Verified below rather than assumed: the copy this leads to tells the user
+        // nothing was lost, so that claim has to be checked, not hoped for.
+        var rollbackFailed = false;
         if (!result.Success && IsStashMergeConflict(action.Id, result))
-            await runner.RunAsync(repoPath, new[] { "reset", "--hard" }, ct);
+        {
+            var rollback = await runner.RunAsync(repoPath, new[] { "reset", "--hard" }, ct);
+            rollbackFailed = !rollback.Success;
+        }
 
         var after = await reader.ReadAsync(repoPath, ct);
+
+        if (rollbackFailed || StillMidConflict(after))
+        {
+            return new ActionOutcome(
+                Success: false,
+                Result: result,
+                Narration: null,
+                Error: new TranslatedError(
+                    Summary: "That clash could not be fully cleared automatically",
+                    Explanation:
+                        "Bringing the stash back conflicted with commits made since it was set "
+                        + "aside, and putting your files back to how they were beforehand did "
+                        + "not fully succeed. Some files may still show conflict markers.",
+                    NextSteps: new[]
+                    {
+                        "Check the files listed below for lines starting with <<<<<<<, and "
+                        + "resolve them the way you would any git conflict.",
+                        "Once resolved, the stash may still be listed — check before assuming "
+                        + "it needs bringing back again.",
+                    },
+                    RawOutput: result.StdErr + "\n" + result.StdOut,
+                    IsUnderstood: true),
+                Before: before,
+                After: after,
+                Blockers: Array.Empty<PreconditionResult>());
+        }
 
         return new ActionOutcome(
             Success: result.Success,
@@ -100,9 +133,16 @@ public sealed class ActionService(
             Blockers: Array.Empty<PreconditionResult>());
     }
 
+    /// <summary>
+    /// True if the repository still shows an unmerged file after an attempted rollback —
+    /// the one signal that "nothing was lost" would be a lie rather than a fact.
+    /// </summary>
+    private static bool StillMidConflict(Model.RepoState after)
+        => after.Changes.Any(c => c.IndexChange == ChangeKind.Unmerged || c.WorkTreeChange == ChangeKind.Unmerged);
+
     private static bool IsStashMergeConflict(string actionId, GitCommandResult result)
         => (actionId == "stash-pop" || actionId == "stash-apply")
-           && (result.StdErr + result.StdOut).Contains("CONFLICT", StringComparison.Ordinal);
+           && (result.StdErr + result.StdOut).Contains("CONFLICT", StringComparison.OrdinalIgnoreCase);
 
     private static GitAction Resolve(string actionId)
         => ActionCatalog.Find(actionId)

@@ -357,6 +357,14 @@ public class ActionCatalogTests
     }
 
     [Fact]
+    public void Stash_RequiresCommitsBeforeOfferingToSetAnythingAside()
+    {
+        var preconditions = ActionCatalog.Find("stash")!.Preconditions;
+
+        Assert.Contains(preconditions, p => p is RequiresCommits);
+    }
+
+    [Fact]
     public async Task Stash_ThenStashPop_RoundTripsAgainstARealRepository()
     {
         using var repo = await TestRepo.CreateAsync();

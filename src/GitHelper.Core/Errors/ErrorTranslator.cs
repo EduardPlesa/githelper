@@ -146,8 +146,9 @@ public static class ErrorTranslator
             new[] { "Refresh and check the list again." }),
 
         // Reachable only via stash-pop/stash-apply in this app (nothing else here can
-        // produce a three-way-merge conflict), and ActionService always rolls back to a
-        // clean tree the moment it sees this — so "put back" here is a fact, not a promise.
+        // produce a three-way-merge conflict). ActionService verifies the rollback actually
+        // cleared the tree before this copy is ever shown — if it did not, it returns a
+        // different error instead, so "put back" here stays a fact rather than a hope.
         new("CONFLICT",
             "That stash clashes with what's on this branch now",
             "Bringing it back would have mixed it into commits made since it was set aside, "

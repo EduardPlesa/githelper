@@ -88,17 +88,31 @@ public sealed class ActionService(
         // exactly that state; the stash entry survives, because git only drops it on a clean
         // merge. Verified below rather than assumed: the copy this leads to tells the user
         // nothing was lost, so that claim has to be checked, not hoped for.
+        var attemptedRollback = false;
         var rollbackFailed = false;
         if (!result.Success && IsStashMergeConflict(action.Id, result))
         {
+            attemptedRollback = true;
             var rollback = await runner.RunAsync(repoPath, new[] { "reset", "--hard" }, ct);
             rollbackFailed = !rollback.Success;
         }
 
         var after = await reader.ReadAsync(repoPath, ct);
 
-        if (rollbackFailed || StillMidConflict(after))
+        // Gated on attemptedRollback, not just StillMidConflict: an unrelated conflict
+        // sitting in the repo from something outside this action (a terminal merge, an
+        // earlier rollback that itself failed to clear) must not turn an unrelated action's
+        // success -- or failure -- into this stash-specific message.
+        if (attemptedRollback && (rollbackFailed || StillMidConflict(after)))
         {
+            var conflictedPaths = after.Changes
+                .Where(c => c.IndexChange == ChangeKind.Unmerged || c.WorkTreeChange == ChangeKind.Unmerged)
+                .Select(c => c.Path)
+                .ToList();
+            var fileList = conflictedPaths.Count == 0
+                ? "the files marked *conflicted* in the list of changes"
+                : string.Join(", ", conflictedPaths);
+
             return new ActionOutcome(
                 Success: false,
                 Result: result,
@@ -111,12 +125,12 @@ public sealed class ActionService(
                         + "not fully succeed. Some files may still show conflict markers.",
                     NextSteps: new[]
                     {
-                        "Check the files listed below for lines starting with <<<<<<<, and "
-                        + "resolve them the way you would any git conflict.",
+                        $"Open {fileList} and look for lines starting with <<<<<<<. This app "
+                        + "does not yet walk you through resolving a clash like this.",
                         "Once resolved, the stash may still be listed — check before assuming "
                         + "it needs bringing back again.",
                     },
-                    RawOutput: result.StdErr + "\n" + result.StdOut,
+                    RawOutput: (result.StdErr + "\n" + result.StdOut).Trim(),
                     IsUnderstood: true),
                 Before: before,
                 After: after,

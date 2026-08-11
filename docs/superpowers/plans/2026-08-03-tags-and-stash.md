@@ -1,6 +1,39 @@
 # Tags and Stash (v1.1) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> ## ⚠ Shipped. This is a record, not instructions.
+>
+> **Do not execute this plan.** Tags and stash are implemented and on `main`. The tasks below
+> describe a codebase that no longer exists: they were written against a `RepoState` with no
+> `Operation` field, before v2 shipped operation state and merge, and every exact-match anchor
+> in them is stale. An agent following them would fail on the first edit, or worse, half-succeed.
+>
+> Kept because the reasoning is worth reading — particularly why `stash-pop` and `stash-apply`
+> are gated on a clean working tree, and why `stash-drop` is the app's second `Destructive`
+> action. For what the code does today, read the code.
+>
+> **Where the shipped work diverged from this plan:**
+>
+> - `RepoState`'s new fields landed as `… Branches, Tags, Stashes, Operation`. This plan
+>   predates `Operation` entirely.
+> - `stash` carries `RequiresNoOperationInProgress`, and `ChangesViewModel.CanStash` is gated on
+>   `state.Operation is null`. Neither is in this plan — both only became necessary once merge
+>   existed, because a conflicted merge counts as uncommitted changes.
+> - `RequiresStashRef` also checks the ref still exists, rather than only that one was picked.
+> - `stash-pop` / `stash-apply` roll the repository back when they conflict with commits made
+>   since the stash was set aside. This plan assumed a clean working tree ruled that out; it
+>   does not — a clean tree says nothing about the commits underneath.
+> - `create-tag` / `delete-tag` pass `--` before the tag name, separating it from any flags.
+> - `stash-drop` being the second `Destructive` action forced the destructive modal's
+>   consequence sentence to stop being hardcoded for `discard-file`.
+> - The app has **25 actions, 15 glossary terms** today.
+>
+> One further note, because it is the most useful thing here: bringing this work together with
+> v2 was botched in `6d7c67f`, which resolved conflicts file-by-file and left `main` unable to
+> compile. That was repaired in #19. Both features were complete; the merge halved each. If you
+> are about to merge two branches that touched the same positional record, build in between.
+
+**Superseded — the agentic-worker instruction that was here has been removed deliberately, so that
+no subagent picks this file up and tries to execute it.**
 
 **Goal:** Close out GitHelper v1.1 by adding tags (create/delete) and stash (set aside/bring back/copy back/delete) as ordinary `GitAction`s, matching the design in `docs/superpowers/specs/2026-08-03-tags-and-stash-design.md`.
 

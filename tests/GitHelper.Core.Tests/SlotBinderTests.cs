@@ -68,6 +68,29 @@ public class SlotBinderTests
     }
 
     [Fact]
+    public void Bind_NamesWhatIsBeingMergedIn()
+    {
+        var merging = State() with
+        {
+            Operation = new OperationState(OperationKind.Merge, "feature"),
+        };
+
+        Assert.Equal("feature", SlotBinder.Bind(merging)["mergingFrom"]);
+    }
+
+    [Fact]
+    public void Bind_DescribesAnUnnameableMergeSourcePlainly()
+    {
+        // name-rev found no name for the commit being merged, so there is nothing to print.
+        var merging = State() with
+        {
+            Operation = new OperationState(OperationKind.Merge, null),
+        };
+
+        Assert.Equal("another branch", SlotBinder.Bind(merging)["mergingFrom"]);
+    }
+
+    [Fact]
     public void Bind_ListsStagedFilesAndTruncatesLongLists()
     {
         var many = Enumerable.Range(1, 10)

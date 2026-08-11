@@ -51,7 +51,14 @@ public static class ActionCatalog
             Title: "Commit",
             Danger: Danger.Caution,
             BuildArgs: (_, r) => new[] { "commit", "-m", r.Message! },
-            Preconditions: new IPrecondition[] { new RequiresMessage(), new RequiresStagedChanges() },
+            // RequiresNoOperationInProgress is not belt-and-braces: a plain commit mid-merge
+            // succeeds, and in succeeding it finalises the merge. Finishing a merge has to
+            // go through merge-continue, which says that is what it is doing.
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresMessage(), new RequiresStagedChanges(),
+                new RequiresNoOperationInProgress(),
+            },
             UndoActionId: "undo-last-commit"),
 
         new GitAction(
@@ -148,6 +155,47 @@ public static class ActionCatalog
             Danger: Danger.Caution,
             BuildArgs: (_, _) => new[] { "remote", "remove", "origin" },
             Preconditions: new IPrecondition[] { new RequiresRemote() }),
+
+        new GitAction(
+            Id: "merge",
+            Title: "Bring this branch's work in",
+            Danger: Danger.Caution,
+            // --no-edit rather than trusting git's tty detection to skip the editor.
+            BuildArgs: (_, r) => new[] { "merge", "--no-edit", r.BranchName! },
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresBranchName(), new RequiresNotCurrentBranch(),
+                new RequiresNoUncommittedChanges(), new RequiresNoOperationInProgress(),
+            }),
+
+        new GitAction(
+            Id: "mark-resolved",
+            Title: "Mark as fixed",
+            Danger: Danger.Safe,
+            // Same argv as stage-file, deliberately a separate action: the content id is the
+            // action id, and what this means to the user is a different sentence entirely.
+            BuildArgs: (_, r) => new[] { "add", "--", r.Path! },
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresPath(), new RequiresMergeInProgress(),
+            }),
+
+        new GitAction(
+            Id: "merge-continue",
+            Title: "Finish the merge",
+            Danger: Danger.Caution,
+            BuildArgs: (_, _) => new[] { "merge", "--continue" },
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresMergeInProgress(), new RequiresNoUnmergedFiles(),
+            }),
+
+        new GitAction(
+            Id: "merge-abort",
+            Title: "Abandon the merge",
+            Danger: Danger.Caution,
+            BuildArgs: (_, _) => new[] { "merge", "--abort" },
+            Preconditions: new IPrecondition[] { new RequiresMergeInProgress() }),
     };
 
     private static readonly Dictionary<string, GitAction> ById =

@@ -16,7 +16,8 @@ public static class SlotBinder
     {
         "branch", "upstream", "ahead", "behind",
         "stagedCount", "unstagedCount", "untrackedCount",
-        "stagedFileList", "path", "branchName", "repoName", "remoteUrl", "mergingFrom",
+        "stagedFileList", "path", "branchName", "repoName", "remoteUrl", "tagName",
+        "mergingFrom",
     };
 
     public static IReadOnlyDictionary<string, string> Bind(

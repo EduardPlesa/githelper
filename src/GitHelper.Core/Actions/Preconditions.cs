@@ -187,6 +187,42 @@ public sealed class RequiresStashRef : IPrecondition
     }
 }
 
+public sealed class RequiresMergeInProgress : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+        => state.Operation?.Kind == OperationKind.Merge
+            ? PreconditionResult.Ok
+            : PreconditionResult.Fail("There is no merge under way, so there is nothing to finish.");
+}
+
+/// <summary>
+/// Guards anything that must not run while git has an operation half-done. Most such
+/// commands git refuses by itself; this exists for the ones that would quietly succeed.
+/// </summary>
+public sealed class RequiresNoOperationInProgress : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+        => state.Operation is null
+            ? PreconditionResult.Ok
+            : PreconditionResult.Fail(
+                "You are part-way through a merge. Finish it or abandon it before starting "
+                + "something else — the banner at the top has both.");
+}
+
+public sealed class RequiresNoUnmergedFiles : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+    {
+        var remaining = state.Unmerged.Count;
+
+        return remaining == 0
+            ? PreconditionResult.Ok
+            : PreconditionResult.Fail(
+                $"{remaining} file(s) still have changes git could not combine. Open each one, "
+                + "fix the marked sections, and mark it fixed before finishing.");
+    }
+}
+
 public sealed class RequiresNoRemote : IPrecondition
 {
     public PreconditionResult Evaluate(RepoState state, ActionRequest request)

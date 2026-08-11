@@ -34,6 +34,14 @@ public sealed class RepoStateReader(IGitRunner runner)
         var remoteResult = await runner.RunAsync(repoPath, new[] { "remote" }, ct);
         var hasRemote = remoteResult.Success && remoteResult.StdOut.Trim().Length > 0;
 
+        var tagResult = await runner.RunAsync(
+            repoPath, new[] { "for-each-ref", "--format=" + TagParser.Format, "refs/tags/" }, ct);
+        var tags = TagParser.Parse(tagResult.StdOut);
+
+        var stashResult = await runner.RunAsync(
+            repoPath, new[] { "stash", "list", "--format=" + StashParser.Format }, ct);
+        var stashes = StashParser.Parse(stashResult.StdOut);
+
         var operation = await ReadOperationAsync(repoPath, ct);
 
         return new RepoState(
@@ -48,6 +56,8 @@ public sealed class RepoStateReader(IGitRunner runner)
             Changes: status.Changes,
             RecentCommits: commits,
             Branches: branches,
+            Tags: tags,
+            Stashes: stashes,
             Operation: operation);
     }
 

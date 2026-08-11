@@ -178,8 +178,8 @@ them, and a beginner who genuinely needs submodules needs a colleague, not a GUI
 
 | Version | Contents | Why here |
 |---|---|---|
-| **v1.1** | ~~Remote management~~ (shipped), tags, stash | No new concepts; proves the descriptor model scales past the original thirteen |
-| **v2** | ~~Operation state, then merge~~ (shipped) | The load-bearing change everything below depends on, so it went first |
+| **v1.1** | ~~Remote management, tags, stash~~ (all shipped) | No new concepts; proved the descriptor model scales past the original thirteen |
+| **v2** | ~~Operation state, then merge~~ (shipped) | The load-bearing change everything below depends on |
 | **v2.1** | Rebase | Rides on v2's operation state; adds the sequencer and history rewriting |
 | **v2.5** | Diff viewer | Independent of the above, and a prerequisite for v3 |
 | **v3** | Guided conflict resolution | Sits on v2 + v2.5 |

@@ -38,6 +38,8 @@ public class BranchesViewModelTests
             Changes: Array.Empty<FileChange>(),
             RecentCommits: Array.Empty<CommitInfo>(),
             Branches: branches.Length > 0 ? branches : new[] { new BranchInfo("main", upstream) },
+            Tags: tags ?? Array.Empty<TagInfo>(),
+            Stashes: Array.Empty<StashInfo>(),
             Operation: null);
 
     [Fact]
@@ -72,8 +74,6 @@ public class BranchesViewModelTests
         Assert.Equal("git merge --no-edit feature", f.Panel.CommandLine);
         Assert.True(f.Panel.RequiresInlineConfirmation);
     }
-            Tags: tags ?? Array.Empty<TagInfo>(),
-            Stashes: Array.Empty<StashInfo>());
 
     [Fact]
     public async Task Update_ListsBranchesAndMarksTheCurrentOne()

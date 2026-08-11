@@ -12,6 +12,8 @@ public class PreconditionTests
         bool hasCommits = true,
         int commitCount = 2,
         OperationState? operation = null,
+        TagInfo[]? tags = null,
+        StashInfo[]? stashes = null,
         params FileChange[] changes)
         => new(
             RepoRoot: @"C:\repos\demo",
@@ -27,6 +29,8 @@ public class PreconditionTests
                 .Select(i => new CommitInfo($"h{i}", $"h{i}", "A", DateTimeOffset.UnixEpoch, $"c{i}"))
                 .ToList(),
             Branches: new[] { new BranchInfo("main", "origin/main"), new BranchInfo("feature", null) },
+            Tags: tags ?? new[] { new TagInfo("v1", "abc1234") },
+            Stashes: stashes ?? Array.Empty<StashInfo>(),
             Operation: operation);
 
     private static ActionRequest Request(

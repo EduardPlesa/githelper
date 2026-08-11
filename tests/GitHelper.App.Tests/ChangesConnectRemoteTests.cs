@@ -34,9 +34,9 @@ public class ChangesConnectRemoteTests
         Changes: Array.Empty<FileChange>(),
         RecentCommits: Array.Empty<CommitInfo>(),
         Branches: Array.Empty<BranchInfo>(),
-        Operation: null);
         Tags: Array.Empty<TagInfo>(),
-        Stashes: Array.Empty<StashInfo>());
+        Stashes: Array.Empty<StashInfo>(),
+        Operation: null);
 
     [Fact]
     public void TheOfferAppearsWhenNothingIsConnected()

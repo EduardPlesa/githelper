@@ -303,8 +303,8 @@ public class ChangesViewModelTests
                 .Select(i => new CommitInfo($"h{i}", $"h{i}", "A", DateTimeOffset.UnixEpoch, $"c{i}"))
                 .ToArray(),
             Branches: Array.Empty<BranchInfo>(),
-            Operation: null);
             Tags: Array.Empty<TagInfo>(),
-            Stashes: Array.Empty<StashInfo>());
+            Stashes: Array.Empty<StashInfo>(),
+            Operation: null);
     }
 }

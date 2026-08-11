@@ -32,6 +32,7 @@ public class ChangesStashTests
             Ahead: 0, Behind: 0, HasCommits: true, HasRemote: false,
             Changes: new[] { new FileChange("a.txt", null, ChangeKind.None, ChangeKind.Modified) },
             RecentCommits: Array.Empty<CommitInfo>(), Branches: Array.Empty<BranchInfo>(),
+            Operation: null,
             Tags: Array.Empty<TagInfo>(), Stashes: Array.Empty<StashInfo>());
 
         f.Changes.Update(dirty, null);
@@ -109,7 +110,7 @@ public class ChangesStashTests
             Ahead: 0, Behind: 0, HasCommits: true, HasRemote: false,
             Changes: Array.Empty<FileChange>(), RecentCommits: Array.Empty<CommitInfo>(),
             Branches: Array.Empty<BranchInfo>(), Tags: Array.Empty<TagInfo>(),
-            Stashes: Array.Empty<StashInfo>());
+            Stashes: Array.Empty<StashInfo>(), Operation: null);
         var stashed = clean with { Stashes = new[] { new StashInfo("stash@{0}", "On main: wip") } };
 
         f.Changes.OnActionCompleted(new ActionOutcome(

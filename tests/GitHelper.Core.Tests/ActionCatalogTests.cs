@@ -24,7 +24,7 @@ public class ActionCatalogTests
     }
 
     [Fact]
-    public void All_ContainsExactlyTheNineteenActions()
+    public void All_ContainsExactlyTheTwentyFiveActions()
     {
         var expected = new[]
         {
@@ -32,6 +32,8 @@ public class ActionCatalogTests
             "create-branch", "switch-branch", "fetch", "pull", "push",
             "discard-file", "undo-last-commit", "delete-branch",
             "connect-remote", "disconnect-remote",
+            "create-tag", "delete-tag",
+            "stash", "stash-pop", "stash-apply", "stash-drop",
             "merge", "mark-resolved", "merge-continue", "merge-abort",
         };
 
@@ -141,7 +143,7 @@ public class ActionCatalogTests
     }
 
     [Fact]
-    public void DiscardFile_IsTheOnlyDestructiveActionInV1()
+    public void DiscardFileAndStashDrop_AreTheOnlyDestructiveActions()
     {
         var destructive = ActionCatalog.All.Where(a => a.Danger == Danger.Destructive).Select(a => a.Id);
 
@@ -170,6 +172,7 @@ public class ActionCatalogTests
         var state = new RepoState(
             @"C:\r", "main", false, "origin/main", 0, 0, true, true,
             Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>(),
+            Array.Empty<TagInfo>(), Array.Empty<StashInfo>(),
             Operation: null);
 
         foreach (var id in new[] { "stage-file", "unstage-file", "discard-file" })
@@ -188,6 +191,7 @@ public class ActionCatalogTests
         var state = new RepoState(
             @"C:\r", "main", false, "origin/main", 0, 1, true, true,
             Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>(),
+            Array.Empty<TagInfo>(), Array.Empty<StashInfo>(),
             Operation: null);
 
         var args = ActionCatalog.Find("pull")!.BuildArgs(state, new ActionRequest("pull"));
@@ -201,6 +205,7 @@ public class ActionCatalogTests
         var state = new RepoState(
             @"C:\r", "main", false, null, 0, 0, true, false,
             Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>(),
+            Array.Empty<TagInfo>(), Array.Empty<StashInfo>(),
             Operation: null);
 
         var args = ActionCatalog.Find("delete-branch")!
@@ -216,6 +221,7 @@ public class ActionCatalogTests
         var withUpstream = new RepoState(
             @"C:\r", "main", false, "origin/main", 1, 0, true, true,
             Array.Empty<FileChange>(), Array.Empty<CommitInfo>(), Array.Empty<BranchInfo>(),
+            Array.Empty<TagInfo>(), Array.Empty<StashInfo>(),
             Operation: null);
         var withoutUpstream = withUpstream with { Upstream = null };
 
@@ -502,5 +508,7 @@ public class ActionCatalogTests
         Changes: Array.Empty<FileChange>(),
         RecentCommits: Array.Empty<CommitInfo>(),
         Branches: Array.Empty<BranchInfo>(),
+        Tags: Array.Empty<TagInfo>(),
+        Stashes: Array.Empty<StashInfo>(),
         Operation: null);
 }

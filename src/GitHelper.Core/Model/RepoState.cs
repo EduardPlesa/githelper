@@ -16,6 +16,8 @@ public sealed record RepoState(
     IReadOnlyList<FileChange> Changes,
     IReadOnlyList<CommitInfo> RecentCommits,
     IReadOnlyList<BranchInfo> Branches,
+    IReadOnlyList<TagInfo> Tags,
+    IReadOnlyList<StashInfo> Stashes,
     OperationState? Operation)
 {
     public IReadOnlyList<FileChange> Staged =>

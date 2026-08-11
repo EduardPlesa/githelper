@@ -12,8 +12,8 @@ public sealed class RepoStateReader(IGitRunner runner)
 
     public async Task<RepoState> ReadAsync(string repoPath, CancellationToken ct = default)
     {
-        var statusResult = await runner.RunAsync(
-            repoPath, new[] { "status", "--porcelain=v2", "-z", "--branch" }, ct);
+        var statusResult = Demand(await runner.RunAsync(
+            repoPath, new[] { "status", "--porcelain=v2", "-z", "--branch" }, ct));
         var status = StatusParser.Parse(statusResult.StdOut);
 
         var logResult = await runner.RunAsync(
@@ -25,21 +25,21 @@ public sealed class RepoStateReader(IGitRunner runner)
             ? LogParser.Parse(logResult.StdOut)
             : Array.Empty<CommitInfo>();
 
-        var branchResult = await runner.RunAsync(
+        var branchResult = Demand(await runner.RunAsync(
             repoPath,
             new[] { "for-each-ref", "--format=" + BranchParser.Format, "refs/heads/" },
-            ct);
+            ct));
         var branches = BranchParser.Parse(branchResult.StdOut);
 
         var remoteResult = await runner.RunAsync(repoPath, new[] { "remote" }, ct);
         var hasRemote = remoteResult.Success && remoteResult.StdOut.Trim().Length > 0;
 
-        var tagResult = await runner.RunAsync(
-            repoPath, new[] { "for-each-ref", "--format=" + TagParser.Format, "refs/tags/" }, ct);
+        var tagResult = Demand(await runner.RunAsync(
+            repoPath, new[] { "for-each-ref", "--format=" + TagParser.Format, "refs/tags/" }, ct));
         var tags = TagParser.Parse(tagResult.StdOut);
 
-        var stashResult = await runner.RunAsync(
-            repoPath, new[] { "stash", "list", "--format=" + StashParser.Format }, ct);
+        var stashResult = Demand(await runner.RunAsync(
+            repoPath, new[] { "stash", "list", "--format=" + StashParser.Format }, ct));
         var stashes = StashParser.Parse(stashResult.StdOut);
 
         var operation = await ReadOperationAsync(repoPath, ct);
@@ -60,6 +60,17 @@ public sealed class RepoStateReader(IGitRunner runner)
             Stashes: stashes,
             Operation: operation);
     }
+
+    /// <summary>
+    /// Passes a successful result through, and refuses to carry on with a failed one.
+    ///
+    /// Only for reads whose output is *described* by the parser rather than *decided* by the
+    /// exit code. `git log` failing means "no commits yet", `git remote` failing means "no
+    /// remote", and `rev-parse --verify MERGE_HEAD` failing means "no merge in progress" —
+    /// those are answers, and they keep their own handling.
+    /// </summary>
+    private static GitCommandResult Demand(GitCommandResult result)
+        => result.Success ? result : throw new GitReadException(result);
 
     /// <summary>
     /// Whether git has an operation in flight, asked of git rather than answered by looking

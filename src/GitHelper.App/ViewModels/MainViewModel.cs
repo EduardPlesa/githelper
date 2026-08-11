@@ -182,7 +182,20 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             var inFlight = Interlocked.Increment(ref _refreshesInFlight);
             if (inFlight > PeakConcurrentRefreshes) PeakConcurrentRefreshes = inFlight;
 
-            var state = await _reader.ReadAsync(_repoPath, ct);
+            RepoState state;
+
+            try
+            {
+                state = await _reader.ReadAsync(_repoPath, ct);
+            }
+            catch (GitReadException ex)
+            {
+                // Say so and change nothing. Publishing a blank state would be the most
+                // alarming possible lie — the user's work appearing to have vanished — and
+                // the last snapshot, though stale, was at least true when it was taken.
+                StatusMessage = ex.Message;
+                return;
+            }
 
             RepositoryName = new DirectoryInfo(state.RepoRoot).Name;
             BranchLabel = state.IsDetached

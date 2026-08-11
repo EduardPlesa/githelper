@@ -5,6 +5,7 @@ using GitHelper.App.Settings;
 using GitHelper.Core.Actions;
 using GitHelper.Core.Content;
 using GitHelper.Core.Errors;
+using GitHelper.Core.Repo;
 using GitHelper.Core.Setup;
 
 namespace GitHelper.App.ViewModels;
@@ -152,7 +153,17 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     /// <summary>Previews an action without running anything.</summary>
     public async Task ShowAsync(string repoPath, ActionRequest request, CancellationToken ct = default)
     {
-        var preview = await _actions.PreviewAsync(repoPath, request, ct);
+        ActionPreview preview;
+
+        try
+        {
+            preview = await _actions.PreviewAsync(repoPath, request, ct);
+        }
+        catch (GitReadException ex)
+        {
+            ShowUnreadable(ex);
+            return;
+        }
 
         // Arming the action path disarms the setup path, so the two can never both fire:
         // otherwise a stale _setupRequest from an earlier setup preview would make
@@ -202,7 +213,19 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
             if (!confirmed) return false;
         }
 
-        var outcome = await _actions.RunAsync(_repoPath, _request, ct);
+        ActionOutcome outcome;
+
+        try
+        {
+            outcome = await _actions.RunAsync(_repoPath, _request, ct);
+        }
+        catch (GitReadException ex)
+        {
+            // The action is re-checked against fresh state before it runs. If that read
+            // fails there is nothing to check against, so nothing runs.
+            ShowUnreadable(ex);
+            return false;
+        }
 
         // Paused is checked alongside Success, and before Error: a merge that stopped on
         // conflicts exits non-zero, and reporting that as a failure would be a lie — git
@@ -304,6 +327,42 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     {
         Clear();
         SetupCancelled?.Invoke();
+    }
+
+    /// <summary>
+    /// Reports a repository the app could not read, and disarms the panel so nothing can be
+    /// confirmed against a state nobody knows. Uses the ordinary error surface rather than a
+    /// new one: to the user this is a git command that failed, like any other.
+    /// </summary>
+    private void ShowUnreadable(GitReadException ex)
+    {
+        Title = "Could not read this project";
+        CommandLine = ex.Result.CommandLine;
+        FileContents = null;
+        WhatBlocks = NoBlocks;
+        RisksBlocks = NoBlocks;
+        UndoBlocks = NoBlocks;
+        Blockers = Array.Empty<string>();
+        CanRun = false;
+        RequiresConfirmation = false;
+        Narration = null;
+
+        Error = new TranslatedError(
+            Summary: "Could not read this project",
+            Explanation:
+                "Reading the project's current state failed, so there is nothing reliable to "
+                + "act on. This usually means the folder has been moved, renamed or deleted "
+                + "since it was opened, or that something else is using it.",
+            NextSteps: new[]
+            {
+                "Check the project folder is still where it was.",
+                "Close the project and open it again.",
+            },
+            RawOutput: (ex.Result.StdErr + "\n" + ex.Result.StdOut).Trim(),
+            IsUnderstood: true);
+
+        ShowTechnicalDetails = false;
+        PanelState = ExplainPanelState.Error;
     }
 
     public void Clear()

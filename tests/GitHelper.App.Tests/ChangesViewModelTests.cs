@@ -26,6 +26,54 @@ public class ChangesViewModelTests
     }
 
     [Fact]
+    public async Task Update_PutsConflictedFilesInTheirOwnList()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+        var f = NewFixture();
+
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
+
+        Assert.Equal(new[] { "conflict.txt" }, f.Changes.Conflicted.Select(r => r.Path));
+        // Not in either ordinary list: a conflicted file is neither staged nor merely edited.
+        Assert.DoesNotContain(f.Changes.Staged, r => r.Path == "conflict.txt");
+        Assert.DoesNotContain(f.Changes.Unstaged, r => r.Path == "conflict.txt");
+        Assert.True(f.Changes.HasConflicts);
+    }
+
+    [Fact]
+    public async Task Update_ReportsNoConflictsOnAnOrdinaryRepository()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("a.txt", "x\n");
+        var f = NewFixture();
+
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
+
+        Assert.Empty(f.Changes.Conflicted);
+        Assert.False(f.Changes.HasConflicts);
+    }
+
+    [Fact]
+    public async Task MarkingAConflictFixedStagesItAndEmptiesTheConflictList()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+        var f = NewFixture();
+        f.Changes.Update(await f.Reader.ReadAsync(repo.Path), null);
+
+        repo.WriteFile("conflict.txt", "reconciled by hand\n");
+        // mark-resolved is Safe, so this runs on click like staging does.
+        await f.Changes.Conflicted.Single().MarkResolvedCommand.ExecuteAsync(null);
+
+        var after = await f.Reader.ReadAsync(repo.Path);
+        f.Changes.Update(after, null);
+
+        Assert.Empty(f.Changes.Conflicted);
+        Assert.Contains(f.Changes.Staged, r => r.Path == "conflict.txt");
+    }
+
+    [Fact]
     public async Task Update_SplitsStagedFromNotStaged()
     {
         using var repo = await TestRepo.CreateAsync();

@@ -13,6 +13,29 @@
                    TextWrapping="Wrap"
                    Opacity="0.7" />
 
+        <!-- Conflicted. Above everything else because nothing else can proceed until these
+             are dealt with, and offering only "mark fixed": staging or discarding a
+             conflicted file would be answering a question not yet asked. -->
+        <StackPanel Name="ConflictedSection" Spacing="6" IsVisible="{Binding HasConflicts}">
+          <TextBlock Text="Waiting for you to decide" FontWeight="Bold" />
+          <TextBlock Opacity="0.7" TextWrapping="Wrap" FontSize="12"
+                     Text="Git could not combine these on its own. Open each one in your editor, remove the marker lines it added, save, then mark it fixed." />
+          <ItemsControl Name="ConflictedHost" ItemsSource="{Binding Conflicted}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:FileChangeRowViewModel">
+                <Grid ColumnDefinitions="*,Auto" Margin="0,3">
+                  <StackPanel>
+                    <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding StatusLabel}" Opacity="0.6" FontSize="12" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Content="I fixed this one"
+                          Command="{Binding MarkResolvedCommand}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
         <!-- Staged -->
         <StackPanel Spacing="6" IsVisible="{Binding HasStagedChanges}">
           <Grid ColumnDefinitions="*,Auto">

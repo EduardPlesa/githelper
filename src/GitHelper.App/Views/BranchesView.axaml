@@ -41,7 +41,7 @@
         <ItemsControl Name="BranchesHost" ItemsSource="{Binding Branches}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:BranchRowViewModel">
-              <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
+              <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,3">
                 <StackPanel Spacing="2">
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
@@ -52,7 +52,10 @@
                 </StackPanel>
                 <Button Grid.Column="1" Content="Switch to it"
                         Command="{Binding SwitchCommand}" IsVisible="{Binding CanSwitch}" />
-                <Button Grid.Column="2" Content="Delete"
+                <Button Grid.Column="2" Content="Bring its work in"
+                        Command="{Binding MergeCommand}" IsVisible="{Binding CanMerge}"
+                        Margin="6,0,0,0" />
+                <Button Grid.Column="3" Content="Delete"
                         Command="{Binding DeleteCommand}" IsVisible="{Binding CanDelete}"
                         Margin="6,0,0,0" />
               </Grid>

@@ -59,6 +59,33 @@ public class TabViewTests
     }
 
     [AvaloniaFact]
+    public async Task ChangesView_ShowsTheConflictSectionOnlyDuringAMerge()
+    {
+        var (repo, reader) = await RepoWithChangesAsync();
+        using var _ = repo;
+        var vm = new ChangesViewModel(NewPanel());
+        vm.Update(await reader.ReadAsync(repo.Path), null);
+
+        var view = new ChangesView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+
+        Assert.NotNull(view.FindControl<ItemsControl>("ConflictedHost"));
+
+        // IsVisible is bound on the section, not on the list inside it.
+        var section = view.FindControl<StackPanel>("ConflictedSection");
+        Assert.NotNull(section);
+        Assert.False(section!.IsVisible);
+
+        await repo.GitAsync("commit", "-q", "-m", "wip");
+        await repo.StartConflictingMergeAsync();
+        vm.Update(await reader.ReadAsync(repo.Path), null);
+
+        Assert.True(section.IsVisible);
+        Assert.Single(vm.Conflicted);
+    }
+
+    [AvaloniaFact]
     public async Task ChangesView_BindsTheCommitBoxBothWays()
     {
         var (repo, reader) = await RepoWithChangesAsync();

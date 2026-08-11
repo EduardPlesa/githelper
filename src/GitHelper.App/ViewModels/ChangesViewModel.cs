@@ -43,8 +43,16 @@ public sealed partial class ChangesViewModel : ViewModelBase
 
     public ObservableCollection<FileChangeRowViewModel> Unstaged { get; } = new();
 
+    /// <summary>
+    /// Files git could not combine during a merge. Kept apart from the two ordinary lists
+    /// because a conflicted file is in neither state: it is not staged, and it is not simply
+    /// edited — it is waiting on a decision only the user can make.
+    /// </summary>
+    public ObservableCollection<FileChangeRowViewModel> Conflicted { get; } = new();
+
     [ObservableProperty] private string _commitMessage = string.Empty;
     [ObservableProperty] private bool _hasStagedChanges;
+    [ObservableProperty] private bool _hasConflicts;
     [ObservableProperty] private bool _hasAnyChanges;
     [ObservableProperty] private bool _hasUnpushedCommits;
     [ObservableProperty] private string _unpushedSummary = string.Empty;
@@ -95,8 +103,13 @@ public sealed partial class ChangesViewModel : ViewModelBase
         foreach (var change in state.Unstaged.Concat(state.Untracked))
             Unstaged.Add(new FileChangeRowViewModel(change, staged: false, InvokeWithPathAsync));
 
+        Conflicted.Clear();
+        foreach (var change in state.Unmerged)
+            Conflicted.Add(new FileChangeRowViewModel(change, staged: false, InvokeWithPathAsync));
+
         HasStagedChanges = Staged.Count > 0;
-        HasAnyChanges = Staged.Count > 0 || Unstaged.Count > 0;
+        HasConflicts = Conflicted.Count > 0;
+        HasAnyChanges = Staged.Count > 0 || Unstaged.Count > 0 || Conflicted.Count > 0;
 
         UpdatePushPrompt(state);
 

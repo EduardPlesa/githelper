@@ -23,6 +23,8 @@ public class SlotBinderTests
             Changes: changes,
             RecentCommits: Array.Empty<CommitInfo>(),
             Branches: Array.Empty<BranchInfo>(),
+            Tags: Array.Empty<TagInfo>(),
+            Stashes: Array.Empty<StashInfo>(),
             Operation: null);
 
     [Fact]
@@ -65,6 +67,20 @@ public class SlotBinderTests
 
         Assert.Equal("src/app.cs", values["path"]);
         Assert.Equal("feature", values["branchName"]);
+    }
+
+    [Fact]
+    public void Bind_IncludesTagName()
+    {
+        var values = SlotBinder.Bind(State(), tagName: "v1");
+
+        Assert.Equal("v1", values["tagName"]);
+    }
+
+    [Fact]
+    public void Bind_DescribesAMissingTagNamePlainly()
+    {
+        Assert.Equal("the tag", SlotBinder.Bind(State())["tagName"]);
     }
 
     [Fact]

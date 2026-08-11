@@ -51,6 +51,8 @@ public sealed partial class ChangesViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<FileChangeRowViewModel> Conflicted { get; } = new();
 
+    public ObservableCollection<StashRowViewModel> Stashes { get; } = new();
+
     [ObservableProperty] private string _commitMessage = string.Empty;
     [ObservableProperty] private bool _hasStagedChanges;
     [ObservableProperty] private bool _hasConflicts;
@@ -116,9 +118,17 @@ public sealed partial class ChangesViewModel : ViewModelBase
         foreach (var change in state.Unmerged)
             Conflicted.Add(new FileChangeRowViewModel(change, staged: false, InvokeWithPathAsync));
 
+        Stashes.Clear();
+        foreach (var stash in state.Stashes)
+            Stashes.Add(new StashRowViewModel(stash, InvokeWithStashAsync));
+
         HasStagedChanges = Staged.Count > 0;
         HasConflicts = Conflicted.Count > 0;
         HasAnyChanges = Staged.Count > 0 || Unstaged.Count > 0 || Conflicted.Count > 0;
+
+        // Conflicts count as uncommitted changes, so the operation check is not redundant:
+        // without it this button lights up mid-merge, where git refuses the stash.
+        CanStash = state.HasUncommittedChanges && state.Operation is null;
 
         UpdatePushPrompt(state);
 

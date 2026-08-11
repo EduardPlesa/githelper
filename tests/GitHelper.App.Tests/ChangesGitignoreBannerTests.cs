@@ -29,9 +29,9 @@ public class ChangesGitignoreBannerTests
         Changes: Array.Empty<FileChange>(),
         RecentCommits: Array.Empty<CommitInfo>(),
         Branches: Array.Empty<BranchInfo>(),
-        Operation: null);
         Tags: Array.Empty<TagInfo>(),
-        Stashes: Array.Empty<StashInfo>());
+        Stashes: Array.Empty<StashInfo>(),
+        Operation: null);
 
     private static FolderState Folder(bool hasGitignore, string root = @"C:\r")
         => new(root, IsRepository: true, FileCount: 3, HasGitignore: hasGitignore, ProjectType.DotNet);

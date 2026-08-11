@@ -41,6 +41,8 @@ public class OperationBannerViewModelTests
             Changes: changes,
             RecentCommits: Array.Empty<CommitInfo>(),
             Branches: Array.Empty<BranchInfo>(),
+            Tags: Array.Empty<TagInfo>(),
+            Stashes: Array.Empty<StashInfo>(),
             Operation: operation);
 
     [Fact]

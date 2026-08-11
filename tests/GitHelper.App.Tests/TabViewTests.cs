@@ -176,6 +176,8 @@ public class TabViewTests
                 Changes: Array.Empty<GitHelper.Core.Model.FileChange>(),
                 RecentCommits: Array.Empty<GitHelper.Core.Model.CommitInfo>(),
                 Branches: Array.Empty<GitHelper.Core.Model.BranchInfo>(),
+                Tags: Array.Empty<GitHelper.Core.Model.TagInfo>(),
+                Stashes: Array.Empty<GitHelper.Core.Model.StashInfo>(),
                 Operation: null),
             null);
 

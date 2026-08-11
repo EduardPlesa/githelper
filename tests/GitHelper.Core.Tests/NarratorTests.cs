@@ -19,6 +19,8 @@ public class NarratorTests
             Changes: changes,
             RecentCommits: commits ?? Array.Empty<CommitInfo>(),
             Branches: Array.Empty<BranchInfo>(),
+            Tags: Array.Empty<TagInfo>(),
+            Stashes: Array.Empty<StashInfo>(),
             Operation: operation);
 
     private static CommitInfo Commit(string hash, string subject)

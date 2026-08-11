@@ -137,6 +137,13 @@ public sealed class ActionService(
                 Blockers: Array.Empty<PreconditionResult>());
         }
 
+        // A merge that stopped on conflicts exits non-zero, so the exit code alone would
+        // route it to the error panel. It is narrated like a success and carries no error.
+        //
+        // A stash pop that conflicts is a different animal and is handled above: it leaves
+        // unmerged index entries without setting MERGE_HEAD, so it is never Paused.
+        var paused = before.Operation is null && after.Operation is not null;
+
         return new ActionOutcome(
             Success: result.Success,
             Result: result,

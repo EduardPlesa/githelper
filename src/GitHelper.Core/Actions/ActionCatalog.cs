@@ -157,6 +157,66 @@ public static class ActionCatalog
             Preconditions: new IPrecondition[] { new RequiresRemote() }),
 
         new GitAction(
+            Id: "create-tag",
+            Title: "Tag this point",
+            Danger: Danger.Safe,
+            BuildArgs: (_, r) => new[] { "tag", "--", r.TagName! },
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresTagName(), new RequiresCommits(), new RequiresTagDoesNotExist(),
+            },
+            UndoActionId: "delete-tag"),
+
+        new GitAction(
+            Id: "delete-tag",
+            Title: "Delete tag",
+            Danger: Danger.Caution,
+            // Unlike branch -d, git has no refusal safety net here — tag -d always succeeds.
+            BuildArgs: (_, r) => new[] { "tag", "-d", "--", r.TagName! },
+            Preconditions: new IPrecondition[] { new RequiresTagName() }),
+
+        new GitAction(
+            Id: "stash",
+            Title: "Set changes aside",
+            Danger: Danger.Safe,
+            BuildArgs: (_, r) => string.IsNullOrWhiteSpace(r.Message)
+                ? new[] { "stash", "push" }
+                : new[] { "stash", "push", "-m", r.Message! },
+            // RequiresNoOperationInProgress is not redundant beside RequiresUncommittedChanges:
+            // a conflicted merge counts as uncommitted changes, so without it this lights up
+            // mid-merge for git to refuse with a raw error.
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresCommits(), new RequiresUncommittedChanges(),
+                new RequiresNoOperationInProgress(),
+            },
+            UndoActionId: "stash-pop"),
+
+        new GitAction(
+            Id: "stash-pop",
+            Title: "Bring back stashed changes",
+            Danger: Danger.Caution,
+            BuildArgs: (_, r) => new[] { "stash", "pop", r.StashRef! },
+            // Only offered against a clean tree, so this can never land on other unsaved
+            // edits and conflict with them. Since HasUncommittedChanges counts unmerged
+            // files, that also rules out running it in the middle of a merge.
+            Preconditions: new IPrecondition[] { new RequiresStashRef(), new RequiresNoUncommittedChanges() }),
+
+        new GitAction(
+            Id: "stash-apply",
+            Title: "Copy back stashed changes",
+            Danger: Danger.Caution,
+            BuildArgs: (_, r) => new[] { "stash", "apply", r.StashRef! },
+            Preconditions: new IPrecondition[] { new RequiresStashRef(), new RequiresNoUncommittedChanges() }),
+
+        new GitAction(
+            Id: "stash-drop",
+            Title: "Delete stash",
+            Danger: Danger.Destructive,
+            BuildArgs: (_, r) => new[] { "stash", "drop", r.StashRef! },
+            Preconditions: new IPrecondition[] { new RequiresStashRef() }),
+
+        new GitAction(
             Id: "merge",
             Title: "Bring this branch's work in",
             Danger: Danger.Caution,

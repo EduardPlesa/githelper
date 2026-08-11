@@ -32,8 +32,12 @@ public sealed class GitRunner : IGitRunner
         foreach (var a in InternalArgs) psi.ArgumentList.Add(a);
         foreach (var a in args) psi.ArgumentList.Add(a);
 
-        // git must never block waiting on a prompt the user cannot see.
+        // git must never block waiting on a prompt the user cannot see. The same goes for
+        // an editor: merge --continue and friends launch one, and there is no window here
+        // for it to appear in. "true" is the do-nothing command, which git treats as an
+        // editor that exited successfully without changing the message.
         psi.Environment["GIT_TERMINAL_PROMPT"] = "0";
+        psi.Environment["GIT_EDITOR"] = "true";
 
         var stopwatch = Stopwatch.StartNew();
         using var process = new Process { StartInfo = psi };

@@ -46,6 +46,28 @@ public sealed class TestRepo : IDisposable
     public Task<GitCommandResult> GitAsync(params string[] args)
         => Runner.RunAsync(Path, args);
 
+    /// <summary>
+    /// Leaves the repository part-way through a merge, with one conflicted file: this
+    /// branch and <paramref name="branchName"/> have each rewritten the same line.
+    /// The merge command itself exits non-zero, which is exactly the case under test.
+    /// </summary>
+    public async Task StartConflictingMergeAsync(string branchName = "feature")
+    {
+        WriteFile("conflict.txt", "original\n");
+        await GitAsync("add", "-A");
+        await GitAsync("commit", "-q", "-m", "add conflict.txt");
+
+        await GitAsync("checkout", "-q", "-b", branchName);
+        WriteFile("conflict.txt", "theirs\n");
+        await GitAsync("commit", "-q", "-a", "-m", "theirs");
+
+        await GitAsync("checkout", "-q", "main");
+        WriteFile("conflict.txt", "ours\n");
+        await GitAsync("commit", "-q", "-a", "-m", "ours");
+
+        await GitAsync("merge", "--no-edit", branchName);
+    }
+
     public void Dispose()
     {
         try

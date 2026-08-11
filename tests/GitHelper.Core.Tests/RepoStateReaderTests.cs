@@ -1,4 +1,5 @@
 using GitHelper.Core.Git;
+using GitHelper.Core.Model;
 using GitHelper.Core.Repo;
 
 namespace GitHelper.Core.Tests;
@@ -100,5 +101,63 @@ public class RepoStateReaderTests
         Assert.Equal(
             Path.GetFileName(repo.Path),
             Path.GetFileName(root!.TrimEnd('/', '\\')));
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReportsNoOperationOnAnOrdinaryRepository()
+    {
+        using var repo = await TestRepo.CreateAsync();
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.Null(state.Operation);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReportsAMergeThatStoppedOnConflicts()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.NotNull(state.Operation);
+        Assert.Equal(OperationKind.Merge, state.Operation!.Kind);
+    }
+
+    [Fact]
+    public async Task ReadAsync_NamesTheBranchBeingMergedIn()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync("feature");
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.Equal("feature", state.Operation!.IncomingLabel);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReportsTheConflictedFileAsUnmerged()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.Equal("conflict.txt", Assert.Single(state.Unmerged).Path);
+        // The whole point of excluding unmerged from staged: Commit must not light up.
+        Assert.False(state.HasStagedChanges);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReportsNoOperationOnceTheMergeIsAbandoned()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+
+        await repo.GitAsync("merge", "--abort");
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.Null(state.Operation);
     }
 }

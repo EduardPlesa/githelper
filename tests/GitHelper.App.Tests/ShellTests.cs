@@ -81,7 +81,7 @@ public class ShellTests
     private static MainViewModel NewMain()
     {
         var log = new CommandLog();
-        var runner = new LoggingGitRunner(new GitRunner(), log);
+        var runner = new SerializedGitRunner(new LoggingGitRunner(new GitRunner(), log));
         var reader = new RepoStateReader(runner);
         var service = new ActionService(runner, reader, ContentLibrary.Load());
         var settings = new InMemorySettingsStore();
@@ -114,7 +114,7 @@ public class ShellTests
     private static MainViewModel NewMainWithSetup()
     {
         var log = new CommandLog();
-        var runner = new LoggingGitRunner(new GitRunner(), log);
+        var runner = new SerializedGitRunner(new LoggingGitRunner(new GitRunner(), log));
         var reader = new RepoStateReader(runner);
         var content = ContentLibrary.Load();
         var service = new ActionService(runner, reader, content);

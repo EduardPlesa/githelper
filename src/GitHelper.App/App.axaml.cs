@@ -43,10 +43,15 @@ public partial class App : Application
     /// </summary>
     private static MainViewModel BuildMainViewModel(Func<Window?> windowAccessor)
     {
+        // Two decorators, and the order matters. SerializedGitRunner is outermost so the
+        // command log records commands in the order they actually ran, and so the wait for
+        // the repository's turn happens before anything is logged as started.
+        //
         // LoggingGitRunner wraps GitRunner so the command log captures every invocation,
         // including the startup environment checks.
         var commandLog = new CommandLog();
-        var runner = new LoggingGitRunner(new GitRunner(), commandLog);
+        var runner = new SerializedGitRunner(
+            new LoggingGitRunner(new GitRunner(), commandLog));
 
         var reader = new RepoStateReader(runner);
         var content = ContentLibrary.Load();

@@ -23,7 +23,7 @@ public class EmptyRepositoryTests
     private static Fixture NewFixture()
     {
         var log = new CommandLog();
-        var runner = new LoggingGitRunner(new GitRunner(), log);
+        var runner = new SerializedGitRunner(new LoggingGitRunner(new GitRunner(), log));
         var reader = new RepoStateReader(runner);
         var service = new ActionService(runner, reader, ContentLibrary.Load());
         var settings = new InMemorySettingsStore();

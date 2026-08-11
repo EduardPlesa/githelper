@@ -15,5 +15,5 @@ so git has no copy of them anywhere. Nothing in this app or in git can bring the
 If you are unsure, commit first instead — you can always undo a commit.
 
 ## undo
-There is no undo. This is the one action in this app that can lose work for good, which
-is why it asks you twice.
+There is no undo. This is one of two actions in this app that can lose work for good,
+which is why it asks you twice.

@@ -145,7 +145,9 @@ public class ActionCatalogTests
     {
         var destructive = ActionCatalog.All.Where(a => a.Danger == Danger.Destructive).Select(a => a.Id);
 
-        Assert.Equal(new[] { "discard-file" }, destructive);
+        Assert.Equal(
+            new[] { "discard-file", "stash-drop" }.OrderBy(x => x),
+            destructive.OrderBy(x => x));
     }
 
     [Fact]
@@ -367,6 +369,130 @@ public class ActionCatalogTests
         var disconnected = await RunActionAsync(repo, new ActionRequest("disconnect-remote"));
         Assert.False(disconnected.HasRemote);
         Assert.Empty((await repo.GitAsync("remote")).StdOut.Trim());
+    }
+
+    [Fact]
+    public void CreateTag_BuildsTagWithTheGivenName()
+    {
+        var args = ActionCatalog.Find("create-tag")!
+            .BuildArgs(MinimalState(), new ActionRequest("create-tag", TagName: "v1"));
+
+        Assert.Equal(new[] { "tag", "--", "v1" }, args);
+    }
+
+    [Fact]
+    public void DeleteTag_BuildsTagDashD()
+    {
+        var args = ActionCatalog.Find("delete-tag")!
+            .BuildArgs(MinimalState(), new ActionRequest("delete-tag", TagName: "v1"));
+
+        Assert.Equal(new[] { "tag", "-d", "--", "v1" }, args);
+    }
+
+    [Fact]
+    public void CreateTag_UndoesToDeleteTag()
+    {
+        Assert.Equal("delete-tag", ActionCatalog.Find("create-tag")!.UndoActionId);
+    }
+
+    [Fact]
+    public async Task CreateTag_ThenDeleteTag_RoundTripsAgainstARealRepository()
+    {
+        using var repo = await TestRepo.CreateAsync();
+
+        var tagged = await RunActionAsync(repo, new ActionRequest("create-tag", TagName: "v1"));
+        Assert.Contains(tagged.Tags, t => t.Name == "v1");
+
+        var untagged = await RunActionAsync(repo, new ActionRequest("delete-tag", TagName: "v1"));
+        Assert.DoesNotContain(untagged.Tags, t => t.Name == "v1");
+    }
+
+    [Fact]
+    public void Stash_BuildsStashPushWithoutAMessageWhenNoneGiven()
+    {
+        var args = ActionCatalog.Find("stash")!.BuildArgs(MinimalState(), new ActionRequest("stash"));
+
+        Assert.Equal(new[] { "stash", "push" }, args);
+    }
+
+    [Fact]
+    public void Stash_BuildsStashPushWithAMessageWhenOneIsGiven()
+    {
+        var args = ActionCatalog.Find("stash")!
+            .BuildArgs(MinimalState(), new ActionRequest("stash", Message: "wip"));
+
+        Assert.Equal(new[] { "stash", "push", "-m", "wip" }, args);
+    }
+
+    [Fact]
+    public void StashPop_BuildsStashPopWithTheGivenRef()
+    {
+        var args = ActionCatalog.Find("stash-pop")!
+            .BuildArgs(MinimalState(), new ActionRequest("stash-pop", StashRef: "stash@{0}"));
+
+        Assert.Equal(new[] { "stash", "pop", "stash@{0}" }, args);
+    }
+
+    [Fact]
+    public void StashApply_BuildsStashApplyWithTheGivenRef()
+    {
+        var args = ActionCatalog.Find("stash-apply")!
+            .BuildArgs(MinimalState(), new ActionRequest("stash-apply", StashRef: "stash@{0}"));
+
+        Assert.Equal(new[] { "stash", "apply", "stash@{0}" }, args);
+    }
+
+    [Fact]
+    public void StashDrop_BuildsStashDropWithTheGivenRef()
+    {
+        var args = ActionCatalog.Find("stash-drop")!
+            .BuildArgs(MinimalState(), new ActionRequest("stash-drop", StashRef: "stash@{0}"));
+
+        Assert.Equal(new[] { "stash", "drop", "stash@{0}" }, args);
+    }
+
+    [Fact]
+    public void Stash_UndoesToStashPop()
+    {
+        Assert.Equal("stash-pop", ActionCatalog.Find("stash")!.UndoActionId);
+    }
+
+    [Fact]
+    public void Stash_RequiresCommitsBeforeOfferingToSetAnythingAside()
+    {
+        var preconditions = ActionCatalog.Find("stash")!.Preconditions;
+
+        Assert.Contains(preconditions, p => p is RequiresCommits);
+    }
+
+    [Fact]
+    public async Task Stash_ThenStashPop_RoundTripsAgainstARealRepository()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "changed\n");
+
+        var stashed = await RunActionAsync(repo, new ActionRequest("stash", Message: "wip"));
+        Assert.Single(stashed.Stashes);
+        Assert.False(stashed.HasUncommittedChanges);
+
+        var popped = await RunActionAsync(
+            repo, new ActionRequest("stash-pop", StashRef: stashed.Stashes[0].Ref));
+        Assert.Empty(popped.Stashes);
+        Assert.True(popped.HasUncommittedChanges);
+    }
+
+    [Fact]
+    public async Task Stash_ThenStashDrop_RemovesTheEntryWithoutRestoringChanges()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "changed\n");
+
+        var stashed = await RunActionAsync(repo, new ActionRequest("stash", Message: "wip"));
+
+        var dropped = await RunActionAsync(
+            repo, new ActionRequest("stash-drop", StashRef: stashed.Stashes[0].Ref));
+        Assert.Empty(dropped.Stashes);
+        Assert.False(dropped.HasUncommittedChanges);
     }
 
     /// <summary>A minimal state for descriptors that read nothing out of it.</summary>

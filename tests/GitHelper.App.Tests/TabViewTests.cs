@@ -108,6 +108,29 @@ public class TabViewTests
     }
 
     [AvaloniaFact]
+    public async Task ChangesView_ShowsStashRowsAndBindsTheStashMessageBox()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "changed\n");
+        await repo.GitAsync("stash", "push", "-m", "wip");
+        var reader = new RepoStateReader(new GitRunner());
+        var vm = new ChangesViewModel(NewPanel());
+        vm.Update(await reader.ReadAsync(repo.Path), null);
+
+        var view = new ChangesView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+
+        Assert.NotNull(view.FindControl<ItemsControl>("StashesHost"));
+        var box = view.FindControl<TextBox>("StashMessageBox");
+        Assert.NotNull(box);
+        Assert.Single(vm.Stashes);
+
+        box!.Text = "next";
+        Assert.Equal("next", vm.StashMessage);
+    }
+
+    [AvaloniaFact]
     public async Task HistoryView_ShowsCommitRows()
     {
         using var repo = await TestRepo.CreateAsync();
@@ -188,6 +211,28 @@ public class TabViewTests
 
         box!.Text = "feature";
         Assert.Equal("feature", vm.NewBranchName);
+    }
+
+    [AvaloniaFact]
+    public async Task BranchesView_ShowsTagRowsAndBindsTheNewTagNameBox()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("tag", "v1");
+        var reader = new RepoStateReader(new GitRunner());
+        var vm = new BranchesViewModel(NewPanel());
+        vm.Update(await reader.ReadAsync(repo.Path));
+
+        var view = new BranchesView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+
+        Assert.NotNull(view.FindControl<ItemsControl>("TagsHost"));
+        var box = view.FindControl<TextBox>("NewTagNameBox");
+        Assert.NotNull(box);
+        Assert.Single(vm.Tags);
+
+        box!.Text = "v2";
+        Assert.Equal("v2", vm.NewTagName);
     }
 
     [AvaloniaFact]

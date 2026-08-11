@@ -146,39 +146,44 @@ public sealed class RequiresBranchDoesNotExist : IPrecondition
             : PreconditionResult.Ok;
 }
 
-public sealed class RequiresMergeInProgress : IPrecondition
+public sealed class RequiresTagName : IPrecondition
 {
     public PreconditionResult Evaluate(RepoState state, ActionRequest request)
-        => state.Operation?.Kind == OperationKind.Merge
-            ? PreconditionResult.Ok
-            : PreconditionResult.Fail("There is no merge under way, so there is nothing to finish.");
+        => string.IsNullOrWhiteSpace(request.TagName)
+            ? PreconditionResult.Fail("Type a name for the tag.")
+            : PreconditionResult.Ok;
 }
 
-/// <summary>
-/// Guards anything that must not run while git has an operation half-done. Most such
-/// commands git refuses by itself; this exists for the ones that would quietly succeed.
-/// </summary>
-public sealed class RequiresNoOperationInProgress : IPrecondition
+public sealed class RequiresTagDoesNotExist : IPrecondition
 {
     public PreconditionResult Evaluate(RepoState state, ActionRequest request)
-        => state.Operation is null
+        => state.Tags.Any(t => string.Equals(t.Name, request.TagName, StringComparison.Ordinal))
+            ? PreconditionResult.Fail(
+                $"A tag called '{request.TagName}' already exists. Pick a different name.")
+            : PreconditionResult.Ok;
+}
+
+public sealed class RequiresUncommittedChanges : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+        => state.HasUncommittedChanges
             ? PreconditionResult.Ok
             : PreconditionResult.Fail(
-                "You are part-way through a merge. Finish it or abandon it before starting "
-                + "something else — the banner at the top has both.");
+                "There is nothing to set aside — nothing has changed since your last commit.");
 }
 
-public sealed class RequiresNoUnmergedFiles : IPrecondition
+public sealed class RequiresStashRef : IPrecondition
 {
     public PreconditionResult Evaluate(RepoState state, ActionRequest request)
     {
-        var remaining = state.Unmerged.Count;
+        if (string.IsNullOrWhiteSpace(request.StashRef))
+            return PreconditionResult.Fail("Pick a stash first — this action works on one at a time.");
 
-        return remaining == 0
+        return state.Stashes.Any(s => string.Equals(s.Ref, request.StashRef, StringComparison.Ordinal))
             ? PreconditionResult.Ok
             : PreconditionResult.Fail(
-                $"{remaining} file(s) still have changes git could not combine. Open each one, "
-                + "fix the marked sections, and mark it fixed before finishing.");
+                "That stash is no longer there. It may already have been brought back, "
+                + "deleted, or removed from outside this app.");
     }
 }
 

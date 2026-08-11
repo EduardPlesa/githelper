@@ -4,8 +4,8 @@ using Avalonia.Interactivity;
 namespace GitHelper.App.Views;
 
 /// <summary>
-/// The one modal in the app. Used only for the single Destructive action, so its
-/// confirmation cannot be clicked past by the muscle memory built up on Caution actions.
+/// The one modal in the app. Used only for Destructive actions (discard-file, stash-drop),
+/// so its confirmation cannot be clicked past by the muscle memory built up on Caution actions.
 /// "Keep my changes" is the default button — the safe choice wins an accidental Enter.
 /// </summary>
 public partial class DiscardConfirmationDialog : Window

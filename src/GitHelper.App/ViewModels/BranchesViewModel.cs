@@ -23,17 +23,23 @@ public sealed partial class BranchesViewModel : ViewModelBase
         FetchCommand = new AsyncRelayCommand(() => InvokeAsync("fetch"));
         PullCommand = new AsyncRelayCommand(() => InvokeAsync("pull"));
         DisconnectRemoteCommand = new AsyncRelayCommand(() => InvokeAsync("disconnect-remote"));
+        CreateTagCommand = new AsyncRelayCommand(() => InvokeAsync("create-tag", tagName: NewTagName));
     }
 
     public ObservableCollection<BranchRowViewModel> Branches { get; } = new();
 
+    public ObservableCollection<TagRowViewModel> Tags { get; } = new();
+
     [ObservableProperty] private string _newBranchName = string.Empty;
+    [ObservableProperty] private string _newTagName = string.Empty;
     [ObservableProperty] private string _currentBranchLabel = string.Empty;
     [ObservableProperty] private bool _isDetached;
     [ObservableProperty] private bool _hasRemote;
     [ObservableProperty] private string _syncSummary = string.Empty;
 
     public IAsyncRelayCommand CreateBranchCommand { get; }
+
+    public IAsyncRelayCommand CreateTagCommand { get; }
 
     public IAsyncRelayCommand FetchCommand { get; }
 
@@ -63,6 +69,10 @@ public sealed partial class BranchesViewModel : ViewModelBase
             Branches.Add(new BranchRowViewModel(branch, isCurrent, InvokeWithBranchAsync));
         }
 
+        Tags.Clear();
+        foreach (var tag in state.Tags)
+            Tags.Add(new TagRowViewModel(tag, InvokeWithTagAsync));
+
         IsDetached = state.IsDetached;
         HasRemote = state.HasRemote;
         CurrentBranchLabel = state.IsDetached
@@ -79,14 +89,27 @@ public sealed partial class BranchesViewModel : ViewModelBase
     /// </summary>
     public void OnActionCompleted(ActionOutcome outcome)
     {
-        if (!outcome.Success || string.IsNullOrEmpty(NewBranchName)) return;
+        if (!outcome.Success) return;
 
-        var existedBefore = outcome.Before.Branches.Any(
-            b => string.Equals(b.Name, NewBranchName, StringComparison.Ordinal));
-        var existsAfter = outcome.After.Branches.Any(
-            b => string.Equals(b.Name, NewBranchName, StringComparison.Ordinal));
+        if (!string.IsNullOrEmpty(NewBranchName))
+        {
+            var existedBefore = outcome.Before.Branches.Any(
+                b => string.Equals(b.Name, NewBranchName, StringComparison.Ordinal));
+            var existsAfter = outcome.After.Branches.Any(
+                b => string.Equals(b.Name, NewBranchName, StringComparison.Ordinal));
 
-        if (!existedBefore && existsAfter) NewBranchName = string.Empty;
+            if (!existedBefore && existsAfter) NewBranchName = string.Empty;
+        }
+
+        if (!string.IsNullOrEmpty(NewTagName))
+        {
+            var existedBefore = outcome.Before.Tags.Any(
+                t => string.Equals(t.Name, NewTagName, StringComparison.Ordinal));
+            var existsAfter = outcome.After.Tags.Any(
+                t => string.Equals(t.Name, NewTagName, StringComparison.Ordinal));
+
+            if (!existedBefore && existsAfter) NewTagName = string.Empty;
+        }
     }
 
     /// <summary>
@@ -112,9 +135,12 @@ public sealed partial class BranchesViewModel : ViewModelBase
     private Task InvokeWithBranchAsync(string actionId, string branchName)
         => InvokeAsync(actionId, branchName);
 
-    private Task InvokeAsync(string actionId, string? branchName = null)
+    private Task InvokeWithTagAsync(string actionId, string tagName)
+        => InvokeAsync(actionId, tagName: tagName);
+
+    private Task InvokeAsync(string actionId, string? branchName = null, string? tagName = null)
         => _repoPath is null
             ? Task.CompletedTask
             : _explain.ShowAndRunIfUngatedAsync(
-                _repoPath, new ActionRequest(actionId, BranchName: branchName));
+                _repoPath, new ActionRequest(actionId, BranchName: branchName, TagName: tagName));
 }

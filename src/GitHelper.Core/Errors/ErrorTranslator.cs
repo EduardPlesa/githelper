@@ -138,6 +138,29 @@ public static class ErrorTranslator
             "Git could not find that file or branch",
             "The name given does not match a file or a branch that git knows about.",
             new[] { "Check the spelling, and that the file has not been moved or deleted." }),
+
+        new("no stash entries found",
+            "That stash is no longer there",
+            "There is nothing stashed right now. It may already have been brought back, "
+            + "deleted, or removed from outside this app.",
+            new[] { "Refresh and check the list again." }),
+
+        // Reachable only via stash-pop/stash-apply in this app (nothing else here can
+        // produce a three-way-merge conflict). ActionService verifies the rollback actually
+        // cleared the tree before this copy is ever shown — if it did not, it returns a
+        // different error instead, so "put back" here stays a fact rather than a hope.
+        new("CONFLICT",
+            "That stash clashes with what's on this branch now",
+            "Bringing it back would have mixed it into commits made since it was set aside, "
+            + "and the two versions disagree. Your files have been put back exactly as they "
+            + "were before this attempt, and the stash is still there — nothing was lost.",
+            new[]
+            {
+                "Switch to the branch or commit the stash was originally set aside from, "
+                + "then try again.",
+                "Or open the file yourself to combine the two versions; this app does not "
+                + "yet walk you through resolving a clash like this.",
+            }),
     };
 
     public static TranslatedError? Translate(GitCommandResult result)

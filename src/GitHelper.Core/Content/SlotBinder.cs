@@ -23,6 +23,7 @@ public static class SlotBinder
         RepoState state,
         string? path = null,
         string? branchName = null,
+        string? tagName = null,
         string? remoteUrl = null)
     {
         return new Dictionary<string, string>(StringComparer.Ordinal)
@@ -37,6 +38,7 @@ public static class SlotBinder
             ["stagedFileList"] = Summarise(state.Staged.Select(c => c.Path)),
             ["path"] = path ?? "this file",
             ["branchName"] = branchName ?? "the branch",
+            ["tagName"] = tagName ?? "the tag",
             ["repoName"] = new DirectoryInfo(state.RepoRoot).Name,
             // Comes from state rather than the request: merge-continue and merge-abort take
             // no arguments, and still have to be able to say what they are acting on.

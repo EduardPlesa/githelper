@@ -28,6 +28,7 @@ public class ErrorTranslatorTests
     // Real git output, verbatim: what a beginner hits committing in a freshly `git init`-ed
     // repository with no global identity set.
     [InlineData("*** Please tell me who you are.\n\nfatal: unable to auto-detect email address", "who you are")]
+    [InlineData("fatal: No stash entries found.", "stash")]
     public void Translate_RecognisesKnownFailures(string stdErr, string expectedFragment)
     {
         var translated = ErrorTranslator.Translate(Failure(stdErr))!;

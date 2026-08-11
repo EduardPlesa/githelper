@@ -30,8 +30,9 @@ public class PreconditionTests
             Operation: operation);
 
     private static ActionRequest Request(
-        string? path = null, string? message = null, string? branchName = null)
-        => new("test", path, message, branchName);
+        string? path = null, string? message = null, string? branchName = null,
+        string? tagName = null, string? stashRef = null)
+        => new("test", path, message, branchName, TagName: tagName, StashRef: stashRef);
 
     [Fact]
     public void RequiresPath_FailsWhenNoPathGiven()
@@ -153,6 +154,59 @@ public class PreconditionTests
     }
 
     [Fact]
+    public void RequiresTagName_FailsWhenNoTagNameGiven()
+    {
+        Assert.False(new RequiresTagName().Evaluate(State(), Request()).Satisfied);
+        Assert.True(new RequiresTagName().Evaluate(State(), Request(tagName: "v2")).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresTagDoesNotExist_RefusesADuplicateName()
+    {
+        Assert.False(
+            new RequiresTagDoesNotExist().Evaluate(State(), Request(tagName: "v1")).Satisfied);
+        Assert.True(
+            new RequiresTagDoesNotExist().Evaluate(State(), Request(tagName: "v2")).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresUncommittedChanges_FailsOnACleanTree()
+    {
+        Assert.False(new RequiresUncommittedChanges().Evaluate(State(), Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresUncommittedChanges_PassesWhenSomethingIsUnstaged()
+    {
+        var dirty = State(changes: new FileChange("a.txt", null, ChangeKind.None, ChangeKind.Modified));
+
+        Assert.True(new RequiresUncommittedChanges().Evaluate(dirty, Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresStashRef_FailsWhenNoStashIsPicked()
+    {
+        var withStash = State(stashes: new[] { new StashInfo("stash@{0}", "wip") });
+
+        Assert.False(new RequiresStashRef().Evaluate(withStash, Request()).Satisfied);
+        Assert.True(
+            new RequiresStashRef().Evaluate(withStash, Request(stashRef: "stash@{0}")).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresStashRef_FailsWhenTheRefNoLongerNamesAStash()
+    {
+        // Stash refs are positional and shift after any pop/drop, so a stale snapshot can
+        // point at an entry that is no longer there.
+        var withStash = State(stashes: new[] { new StashInfo("stash@{0}", "wip") });
+
+        var result = new RequiresStashRef().Evaluate(withStash, Request(stashRef: "stash@{1}"));
+
+        Assert.False(result.Satisfied);
+        Assert.Contains("no longer", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void RequiresCommits_FailsInARepositoryWithNoCommitsYet()
     {
         Assert.False(new RequiresCommits().Evaluate(State(hasCommits: false), Request()).Satisfied);
@@ -170,13 +224,15 @@ public class PreconditionTests
             new RequiresCommits(), new RequiresParentCommit(), new RequiresStagedChanges(),
             new RequiresRemote(), new RequiresUpstream(), new RequiresNoUncommittedChanges(),
             new RequiresNotCurrentBranch(), new RequiresBranchDoesNotExist(),
+            new RequiresTagDoesNotExist(), new RequiresStashRef(),
         };
 
         // A state and request chosen so that every precondition above fails.
         var failing = State(
             branch: "main", upstream: null, hasRemote: false, hasCommits: false, commitCount: 1,
+            tags: new[] { new TagInfo("main", "abc1234") },
             changes: new FileChange("a.txt", null, ChangeKind.None, ChangeKind.Modified));
-        var request = Request(branchName: "main");
+        var request = Request(branchName: "main", tagName: "main");
 
         foreach (var precondition in all)
         {

@@ -304,5 +304,7 @@ public class ChangesViewModelTests
                 .ToArray(),
             Branches: Array.Empty<BranchInfo>(),
             Operation: null);
+            Tags: Array.Empty<TagInfo>(),
+            Stashes: Array.Empty<StashInfo>());
     }
 }

@@ -1,6 +1,7 @@
 using GitHelper.Core.Actions;
 using GitHelper.Core.Content;
 using GitHelper.Core.Git;
+using GitHelper.Core.Model;
 using GitHelper.Core.Repo;
 
 namespace GitHelper.Core.Tests;
@@ -146,6 +147,159 @@ public class ActionServiceTests
         Assert.False(preview.CanRun);
         Assert.DoesNotContain(
             preview.Slots.Values, value => value.Contains("ghp_exampletoken", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RunAsync_RollsBackAStashPopThatConflictsInsteadOfLeavingAHalfFinishedMerge()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "set aside\n");
+        await repo.GitAsync("stash", "push", "-q", "-m", "wip");
+
+        // HEAD moves on the same line after the stash was taken, so popping against a clean
+        // tree still conflicts — the precondition only rules out unsaved edits, not this.
+        repo.WriteFile("README.md", "moved on\n");
+        await repo.GitAsync("commit", "-a", "-q", "-m", "moved on");
+
+        var beforePop = await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path);
+        var stashRef = beforePop.Stashes.Single().Ref;
+
+        var outcome = await NewService().RunAsync(
+            repo.Path, new ActionRequest("stash-pop", StashRef: stashRef));
+
+        Assert.False(outcome.Success);
+
+        var after = await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path);
+        Assert.Empty(after.Changes);
+        Assert.Equal(
+            "moved on\n",
+            (await File.ReadAllTextAsync(Path.Combine(repo.Path, "README.md"))).Replace("\r\n", "\n"));
+
+        var stashList = await repo.GitAsync("stash", "list");
+        Assert.Contains("wip", stashList.StdOut);
+
+        Assert.NotNull(outcome.Error);
+        Assert.Equal("That stash clashes with what's on this branch now", outcome.Error!.Summary);
+    }
+
+    /// <summary>
+    /// Wraps a real GitRunner but fakes a failure for "reset --hard" without actually running
+    /// it — the cheapest way to force the rollback itself to fail while everything else,
+    /// including the conflict this is rolling back from, is produced by real git.
+    /// </summary>
+    private sealed class RollbackFailingRunner(IGitRunner inner) : IGitRunner
+    {
+        public Task<GitCommandResult> RunAsync(
+            string workingDirectory, IReadOnlyList<string> args, CancellationToken ct = default)
+        {
+            if (args.Count == 2 && args[0] == "reset" && args[1] == "--hard")
+                return Task.FromResult(new GitCommandResult(
+                    args, "", "fatal: Unable to create '.git/index.lock': File exists.", 128, TimeSpan.Zero));
+
+            return inner.RunAsync(workingDirectory, args, ct);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_ReportsWhenTheRollbackAfterAConflictedStashPopItselfFails()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "set aside\n");
+        await repo.GitAsync("stash", "push", "-q", "-m", "wip");
+
+        // HEAD moves on the same line after the stash was taken, so popping against a clean
+        // tree still conflicts — the precondition only rules out unsaved edits, not this.
+        repo.WriteFile("README.md", "moved on\n");
+        await repo.GitAsync("commit", "-a", "-q", "-m", "moved on");
+
+        var beforePop = await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path);
+        var stashRef = beforePop.Stashes.Single().Ref;
+
+        var runner = new RollbackFailingRunner(new GitRunner());
+        var service = new ActionService(runner, new RepoStateReader(runner), ContentLibrary.Load());
+
+        var outcome = await service.RunAsync(
+            repo.Path, new ActionRequest("stash-pop", StashRef: stashRef));
+
+        Assert.False(outcome.Success);
+        Assert.NotNull(outcome.Error);
+        Assert.Equal("That clash could not be fully cleared automatically", outcome.Error!.Summary);
+
+        // The reset was faked rather than run, so the tree is genuinely still mid-conflict —
+        // this is not an assumption, it is what real git left behind.
+        var after = await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path);
+        Assert.Contains(
+            after.Changes,
+            c => c.IndexChange == ChangeKind.Unmerged || c.WorkTreeChange == ChangeKind.Unmerged);
+    }
+
+    /// <summary>
+    /// Claims the reset succeeded without running it, so the repository is left genuinely
+    /// mid-conflict underneath a "success" result — the other half of the honest-fallback
+    /// check, independent of RollbackFailingRunner's "the reset itself errors" half.
+    /// </summary>
+    private sealed class RollbackLyingRunner(IGitRunner inner) : IGitRunner
+    {
+        public Task<GitCommandResult> RunAsync(
+            string workingDirectory, IReadOnlyList<string> args, CancellationToken ct = default)
+        {
+            if (args.Count == 2 && args[0] == "reset" && args[1] == "--hard")
+                return Task.FromResult(new GitCommandResult(args, "", "", 0, TimeSpan.Zero));
+
+            return inner.RunAsync(workingDirectory, args, ct);
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_ReportsWhenTheRollbackClaimsSuccessButTheTreeIsStillConflicted()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "set aside\n");
+        await repo.GitAsync("stash", "push", "-q", "-m", "wip");
+
+        repo.WriteFile("README.md", "moved on\n");
+        await repo.GitAsync("commit", "-a", "-q", "-m", "moved on");
+
+        var beforePop = await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path);
+        var stashRef = beforePop.Stashes.Single().Ref;
+
+        var runner = new RollbackLyingRunner(new GitRunner());
+        var service = new ActionService(runner, new RepoStateReader(runner), ContentLibrary.Load());
+
+        var outcome = await service.RunAsync(
+            repo.Path, new ActionRequest("stash-pop", StashRef: stashRef));
+
+        Assert.False(outcome.Success);
+        Assert.NotNull(outcome.Error);
+        Assert.Equal("That clash could not be fully cleared automatically", outcome.Error!.Summary);
+    }
+
+    [Fact]
+    public async Task RunAsync_DoesNotBlameAnUnrelatedActionForAConflictItDidNotCause()
+    {
+        // A conflict already sitting in the repo -- from a terminal merge, say -- must not
+        // turn some other, unrelated action's success into the stash-rollback failure. The
+        // check that catches a stash rollback that did not clear must be scoped to the
+        // rollback actually having been attempted.
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("switch", "-c", "other");
+        repo.WriteFile("conflict.txt", "two\n");
+        await repo.GitAsync("add", "-A");
+        await repo.GitAsync("commit", "-q", "-m", "two");
+
+        await repo.GitAsync("switch", "main");
+        repo.WriteFile("conflict.txt", "one\n");
+        await repo.GitAsync("add", "-A");
+        await repo.GitAsync("commit", "-q", "-m", "one");
+        await repo.GitAsync("merge", "other");
+
+        repo.WriteFile("unrelated.txt", "x\n");
+
+        var outcome = await NewService().RunAsync(
+            repo.Path, new ActionRequest("stage-file", Path: "unrelated.txt"));
+
+        Assert.True(outcome.Success);
+        Assert.Null(outcome.Error);
     }
 
     [Fact]

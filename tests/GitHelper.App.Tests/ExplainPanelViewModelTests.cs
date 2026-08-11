@@ -339,4 +339,21 @@ public class ExplainPanelViewModelTests
         // Declining must leave the file untouched.
         Assert.Equal("vandalised\n", File.ReadAllText(Path.Combine(repo.Path, "README.md")).Replace("\r\n", "\n"));
     }
+
+    [Fact]
+    public async Task RunAsync_ShowsAStoppedMergeAsNarrationRatherThanAnError()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+        await repo.GitAsync("merge", "--abort");
+
+        var (panel, _, _) = NewPanel();
+        await panel.ShowAsync(repo.Path, new ActionRequest("merge", BranchName: "feature"));
+        await panel.RunAsync();
+
+        Assert.Equal(ExplainPanelState.Explaining, panel.PanelState);
+        Assert.Null(panel.Error);
+        Assert.True(panel.HasNarration);
+        Assert.Contains("stopped", panel.Narration!, StringComparison.OrdinalIgnoreCase);
+    }
 }

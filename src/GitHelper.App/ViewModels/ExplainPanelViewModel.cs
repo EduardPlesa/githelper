@@ -204,7 +204,10 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
 
         var outcome = await _actions.RunAsync(_repoPath, _request, ct);
 
-        if (outcome.Success)
+        // Paused is checked alongside Success, and before Error: a merge that stopped on
+        // conflicts exits non-zero, and reporting that as a failure would be a lie — git
+        // did what it was asked, and the work now belongs to the user.
+        if (outcome.Success || outcome.Paused)
         {
             Narration = outcome.Narration;
             Error = null;

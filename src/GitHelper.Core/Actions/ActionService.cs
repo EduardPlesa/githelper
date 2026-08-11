@@ -81,11 +81,15 @@ public sealed class ActionService(
         var result = await runner.RunAsync(repoPath, args, ct);
         var after = await reader.ReadAsync(repoPath, ct);
 
+        // A merge that stopped on conflicts exits non-zero, so the exit code alone would
+        // route it to the error panel. It is narrated like a success and carries no error.
+        var paused = before.Operation is null && after.Operation is not null;
+
         return new ActionOutcome(
             Success: result.Success,
             Result: result,
-            Narration: result.Success ? Narrator.Describe(before, after) : null,
-            Error: ErrorTranslator.Translate(result),
+            Narration: result.Success || paused ? Narrator.Describe(before, after) : null,
+            Error: paused ? null : ErrorTranslator.Translate(result),
             Before: before,
             After: after,
             Blockers: Array.Empty<PreconditionResult>());

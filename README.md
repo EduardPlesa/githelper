@@ -139,7 +139,7 @@ explanation says so in advance, so it arrives expected rather than alarming.
 
 ## The action set
 
-Fifteen actions, covering roughly the 90% of beginner git that doesn't involve conflicts.
+Nineteen actions, covering roughly the 90% of beginner git.
 
 | Action | Command | Danger |
 |---|---|---|
@@ -158,6 +158,10 @@ Fifteen actions, covering roughly the 90% of beginner git that doesn't involve c
 | Delete branch | `git branch -d <name>` | Caution |
 | Connect to GitHub | `git remote add origin <url>` | Caution |
 | Disconnect from GitHub | `git remote remove origin` | Caution |
+| Bring a branch's work in | `git merge --no-edit <name>` | Caution |
+| Mark a conflict as fixed | `git add -- <path>` | Safe |
+| Finish the merge | `git merge --continue` | Caution |
+| Abandon the merge | `git merge --abort` | Caution |
 
 Four choices in that table are teaching decisions, not technical ones:
 
@@ -253,10 +257,13 @@ Recorded so they read as decisions rather than oversights. The reasoning, the co
 the order they should close in is in **[the roadmap](docs/roadmap.md)** — including two items that
 are *declined* rather than deferred:
 
-- **Merge, rebase, stash, cherry-pick, and tags.**
-- **Guided conflict resolution** — this is milestone 2. It's the scariest part of git for a
-  beginner and the most complex UI in the product; it deserves its own design pass rather than
-  being squeezed in.
+- ~~Merge.~~ Shipped, along with the operation-state model it needed: the repository can now be
+  part-way through something, and a band across the top of the window says so and offers the way
+  out. **Rebase, stash, cherry-pick, and tags** are still deferred.
+- **Guided conflict resolution** — still deferred. A stopped merge now tells you which files
+  need attention and takes "I fixed this one" per file, but the fixing itself happens in your
+  own editor. Doing it in-app is the scariest part of git for a beginner and the most complex UI
+  in the product; it waits on the diff viewer below and deserves its own design pass.
 - **A diff viewer** — the Changes tab lists *what* changed, not the contents of the change.
 - ~~Remote management.~~ Connecting to and disconnecting from GitHub shipped — see
   [Publishing to GitHub](#publishing-to-github). A view for multiple or renamed remotes is
@@ -274,7 +281,7 @@ are *declined* rather than deferred:
 src/
   GitHelper.Core/       engine — git, parsing, actions, errors
   GitHelper.Content/    authored explanations + glossary + .gitignore templates
-                        (15 actions, 2 setup ops, 11 terms, 5 templates)
+                        (19 actions, 2 setup ops, 13 terms, 5 templates)
   GitHelper.App/        Avalonia UI
 tests/
   GitHelper.Core.Tests/ engine tests against real git

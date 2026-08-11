@@ -52,6 +52,7 @@ public class LocalSetupJourneyTests : IDisposable
             new ChangesViewModel(explain),
             new HistoryViewModel(explain),
             new BranchesViewModel(explain),
+            new OperationBannerViewModel(explain),
             new RepoWatcher(TimeSpan.FromMilliseconds(50), () => { }),
             new ThemeController(),
             settings,

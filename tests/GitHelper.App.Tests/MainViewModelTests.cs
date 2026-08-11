@@ -39,6 +39,7 @@ public class MainViewModelTests
             new ChangesViewModel(explain),
             new HistoryViewModel(explain),
             new BranchesViewModel(explain),
+            new OperationBannerViewModel(explain),
             new RepoWatcher(TimeSpan.FromMilliseconds(50), () => { }),
             new ThemeController(),
             settings,
@@ -291,5 +292,51 @@ public class MainViewModelTests
 
         Assert.True(main.IsRepositoryOpen);
         Assert.Single(main.Changes.Unstaged);
+    }
+
+    [Fact]
+    public async Task OpeningARepositoryMidMergeShowsTheBandStraightAway()
+    {
+        // The repository is the source of truth, not anything this app remembered. A merge
+        // left running before the app was last closed has to be visible on opening.
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+        var f = NewFixture();
+        using var main = f.Main;
+
+        await main.Startup.OpenAsync(repo.Path);
+
+        Assert.True(main.OperationBanner.IsVisible);
+        Assert.Contains("feature", main.OperationBanner.Headline);
+    }
+
+    [Fact]
+    public async Task TheBandStaysVisibleAcrossTabs()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+        var f = NewFixture();
+        using var main = f.Main;
+        await main.Startup.OpenAsync(repo.Path);
+
+        main.SelectedTab = MainTab.Branches;
+
+        Assert.True(main.OperationBanner.IsVisible);
+    }
+
+    [Fact]
+    public async Task TheBandDisappearsWhenTheMergeIsAbandoned()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+        var f = NewFixture();
+        using var main = f.Main;
+        await main.Startup.OpenAsync(repo.Path);
+        Assert.True(main.OperationBanner.IsVisible);
+
+        await repo.GitAsync("merge", "--abort");
+        await main.RefreshAsync();
+
+        Assert.False(main.OperationBanner.IsVisible);
     }
 }

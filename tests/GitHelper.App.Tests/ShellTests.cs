@@ -98,6 +98,7 @@ public class ShellTests
             new ChangesViewModel(explain),
             new HistoryViewModel(explain),
             new BranchesViewModel(explain),
+            new OperationBannerViewModel(explain),
             new RepoWatcher(TimeSpan.FromMilliseconds(50), () => { }),
             new ThemeController(),
             settings,
@@ -132,6 +133,7 @@ public class ShellTests
             new ChangesViewModel(explain),
             new HistoryViewModel(explain),
             new BranchesViewModel(explain),
+            new OperationBannerViewModel(explain),
             new RepoWatcher(TimeSpan.FromMilliseconds(50), () => { }),
             new ThemeController(),
             settings,
@@ -293,5 +295,32 @@ public class ShellTests
         {
             Directory.Delete(dir, recursive: true);
         }
+    }
+
+    [AvaloniaFact]
+    public async Task MainWindow_ShowsTheOperationBandOnEveryTabWhileAMergeIsPaused()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+        using var main = NewMain();
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+
+        var band = window.FindControl<Border>("OperationBand");
+        Assert.NotNull(band);
+        Assert.False(band!.IsVisible);
+
+        await main.Startup.OpenAsync(repo.Path);
+
+        Assert.True(band.IsVisible);
+
+        // It belongs to the repository, not to a tab, so switching away must not hide it.
+        main.SelectedTab = MainTab.Branches;
+        Assert.True(band.IsVisible);
+
+        await repo.GitAsync("merge", "--abort");
+        await main.RefreshAsync();
+
+        Assert.False(band.IsVisible);
     }
 }

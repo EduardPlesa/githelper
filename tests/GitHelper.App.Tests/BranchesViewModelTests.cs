@@ -38,6 +38,40 @@ public class BranchesViewModelTests
             Changes: Array.Empty<FileChange>(),
             RecentCommits: Array.Empty<CommitInfo>(),
             Branches: branches.Length > 0 ? branches : new[] { new BranchInfo("main", upstream) },
+            Operation: null);
+
+    [Fact]
+    public void EveryBranchButTheCurrentOneOffersToBringItsWorkIn()
+    {
+        var f = NewFixture();
+
+        f.Branches.Update(State(
+            branches: new[] { new BranchInfo("main", null), new BranchInfo("feature", null) }));
+
+        var main = f.Branches.Branches.Single(b => b.Name == "main");
+        var feature = f.Branches.Branches.Single(b => b.Name == "feature");
+
+        // You cannot merge a branch into itself, so the current row does not offer it.
+        Assert.False(main.CanMerge);
+        Assert.True(feature.CanMerge);
+    }
+
+    [Fact]
+    public async Task MergingABranchPreviewsRatherThanRunningStraightAway()
+    {
+        // merge is Caution: it can stop half-way, so it explains itself and waits.
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("branch", "feature");
+        var f = NewFixture();
+        f.Branches.Update(await f.Reader.ReadAsync(repo.Path));
+
+        await f.Branches.Branches.Single(b => b.Name == "feature")
+            .MergeCommand.ExecuteAsync(null);
+
+        Assert.Equal("Bring this branch's work in", f.Panel.Title);
+        Assert.Equal("git merge --no-edit feature", f.Panel.CommandLine);
+        Assert.True(f.Panel.RequiresInlineConfirmation);
+    }
             Tags: tags ?? Array.Empty<TagInfo>(),
             Stashes: Array.Empty<StashInfo>());
 

@@ -23,8 +23,7 @@ public class SlotBinderTests
             Changes: changes,
             RecentCommits: Array.Empty<CommitInfo>(),
             Branches: Array.Empty<BranchInfo>(),
-            Tags: Array.Empty<TagInfo>(),
-            Stashes: Array.Empty<StashInfo>());
+            Operation: null);
 
     [Fact]
     public void Bind_ProvidesBranchAndUpstream()
@@ -69,17 +68,26 @@ public class SlotBinderTests
     }
 
     [Fact]
-    public void Bind_IncludesTagName()
+    public void Bind_NamesWhatIsBeingMergedIn()
     {
-        var values = SlotBinder.Bind(State(), tagName: "v1");
+        var merging = State() with
+        {
+            Operation = new OperationState(OperationKind.Merge, "feature"),
+        };
 
-        Assert.Equal("v1", values["tagName"]);
+        Assert.Equal("feature", SlotBinder.Bind(merging)["mergingFrom"]);
     }
 
     [Fact]
-    public void Bind_DescribesAMissingTagNamePlainly()
+    public void Bind_DescribesAnUnnameableMergeSourcePlainly()
     {
-        Assert.Equal("the tag", SlotBinder.Bind(State())["tagName"]);
+        // name-rev found no name for the commit being merged, so there is nothing to print.
+        var merging = State() with
+        {
+            Operation = new OperationState(OperationKind.Merge, null),
+        };
+
+        Assert.Equal("another branch", SlotBinder.Bind(merging)["mergingFrom"]);
     }
 
     [Fact]

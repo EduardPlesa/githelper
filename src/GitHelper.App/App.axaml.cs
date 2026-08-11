@@ -72,6 +72,7 @@ public partial class App : Application
             new ChangesViewModel(explain, browser),
             new HistoryViewModel(explain),
             new BranchesViewModel(explain),
+            new OperationBannerViewModel(explain),
             new RepoWatcher(RefreshDebounce, () => { }),
             new ThemeController(),
             settings,

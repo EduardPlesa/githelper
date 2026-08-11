@@ -11,8 +11,7 @@ public class PreconditionTests
         bool hasRemote = true,
         bool hasCommits = true,
         int commitCount = 2,
-        TagInfo[]? tags = null,
-        StashInfo[]? stashes = null,
+        OperationState? operation = null,
         params FileChange[] changes)
         => new(
             RepoRoot: @"C:\repos\demo",
@@ -28,8 +27,7 @@ public class PreconditionTests
                 .Select(i => new CommitInfo($"h{i}", $"h{i}", "A", DateTimeOffset.UnixEpoch, $"c{i}"))
                 .ToList(),
             Branches: new[] { new BranchInfo("main", "origin/main"), new BranchInfo("feature", null) },
-            Tags: tags ?? new[] { new TagInfo("v1", "abc1234") },
-            Stashes: stashes ?? Array.Empty<StashInfo>());
+            Operation: operation);
 
     private static ActionRequest Request(
         string? path = null, string? message = null, string? branchName = null,
@@ -246,6 +244,74 @@ public class PreconditionTests
         var branchNameResult = new RequiresBranchName().Evaluate(failing, Request());
         Assert.False(branchNameResult.Satisfied);
         Assert.False(string.IsNullOrWhiteSpace(branchNameResult.Message));
+
+        // The merge preconditions fail on the opposite state to everything above — they
+        // need an operation in flight, or none, rather than a dirty tree.
+        var merging = State(operation: new OperationState(OperationKind.Merge, "feature"));
+
+        foreach (var precondition in new IPrecondition[]
+                 {
+                     new RequiresNoOperationInProgress(),
+                     new RequiresNoUnmergedFiles(),
+                 })
+        {
+            var result = precondition.Evaluate(
+                merging with { Changes = new[] { Conflicted("a.txt") } }, request);
+            Assert.False(result.Satisfied, $"{precondition.GetType().Name} unexpectedly passed");
+            Assert.False(string.IsNullOrWhiteSpace(result.Message));
+        }
+
+        var notMerging = new RequiresMergeInProgress().Evaluate(State(), request);
+        Assert.False(notMerging.Satisfied);
+        Assert.False(string.IsNullOrWhiteSpace(notMerging.Message));
+    }
+
+    private static FileChange Conflicted(string path)
+        => new(path, null, ChangeKind.Unmerged, ChangeKind.Unmerged);
+
+    [Fact]
+    public void RequiresMergeInProgress_FailsWhenNothingIsInFlight()
+    {
+        Assert.False(new RequiresMergeInProgress().Evaluate(State(), Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresMergeInProgress_PassesDuringAMerge()
+    {
+        var merging = State(operation: new OperationState(OperationKind.Merge, "feature"));
+
+        Assert.True(new RequiresMergeInProgress().Evaluate(merging, Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresNoOperationInProgress_FailsDuringAMerge()
+    {
+        var merging = State(operation: new OperationState(OperationKind.Merge, "feature"));
+
+        Assert.False(new RequiresNoOperationInProgress().Evaluate(merging, Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresNoOperationInProgress_PassesOnAnOrdinaryRepository()
+    {
+        Assert.True(new RequiresNoOperationInProgress().Evaluate(State(), Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresNoUnmergedFiles_FailsWhileAFileStillConflicts()
+    {
+        var conflicted = State(changes: Conflicted("a.txt"));
+
+        Assert.False(new RequiresNoUnmergedFiles().Evaluate(conflicted, Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresNoUnmergedFiles_PassesOnceEveryConflictIsResolved()
+    {
+        var resolved = State(
+            changes: new FileChange("a.txt", null, ChangeKind.Modified, ChangeKind.None));
+
+        Assert.True(new RequiresNoUnmergedFiles().Evaluate(resolved, Request()).Satisfied);
     }
 
     private static ActionRequest UrlRequest(string? url)

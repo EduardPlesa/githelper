@@ -93,4 +93,29 @@ public class GitRunnerTests
         Assert.Same(task, completed);
         Assert.True((await task).Success);
     }
+
+    [Fact]
+    public async Task RunAsync_NeverLetsGitReachForAnEditor()
+    {
+        // `merge --continue` and friends launch the configured editor. There is no window
+        // for it to appear in, so it would hang forever on a prompt nobody can see — the
+        // same reason terminal prompts are already disabled.
+        //
+        // The ambient environment is deliberately poisoned first: this must hold because
+        // the runner sets it, not because whoever launched the app happened to.
+        using var repo = await TestRepo.CreateAsync();
+        var previous = Environment.GetEnvironmentVariable("GIT_EDITOR");
+        Environment.SetEnvironmentVariable("GIT_EDITOR", "not-an-editor");
+
+        try
+        {
+            var result = await new GitRunner().RunAsync(repo.Path, new[] { "var", "GIT_EDITOR" });
+
+            Assert.Equal("true", result.StdOut.Trim());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GIT_EDITOR", previous);
+        }
+    }
 }

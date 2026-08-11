@@ -15,6 +15,7 @@ public static class Narrator
     {
         var parts = new List<string>();
 
+        DescribeOperation(before, after, parts);
         DescribeCommits(before, after, parts);
         DescribeBranch(before, after, parts);
         DescribeStaging(before, after, parts);
@@ -23,6 +24,33 @@ public static class Narrator
         return parts.Count == 0
             ? "No change that this app can see."
             : string.Join(" ", parts);
+    }
+
+    /// <summary>
+    /// The only part of narration about something that did not finish. It speaks only about
+    /// operations starting and ending — an operation that was already running and still is
+    /// has nothing new to report, and the file counts speak for themselves in the band.
+    /// </summary>
+    private static void DescribeOperation(RepoState before, RepoState after, List<string> parts)
+    {
+        if (before.Operation is null && after.Operation is not null)
+        {
+            var conflicts = after.Unmerged.Count;
+            parts.Add(
+                $"The merge stopped. {conflicts} file(s) have changes git could not "
+                + "combine on its own.");
+            return;
+        }
+
+        if (before.Operation is null || after.Operation is not null) return;
+
+        // Whether it finished or was called off is the difference between a commit having
+        // appeared and not — which is observed, not assumed from which action ran.
+        var committed = after.RecentCommits.Count > before.RecentCommits.Count;
+
+        parts.Add(committed
+            ? "The merge is finished."
+            : "The merge was abandoned. Your files are back as they were.");
     }
 
     private static void DescribeCommits(RepoState before, RepoState after, List<string> parts)

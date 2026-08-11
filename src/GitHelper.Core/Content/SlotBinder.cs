@@ -16,7 +16,7 @@ public static class SlotBinder
     {
         "branch", "upstream", "ahead", "behind",
         "stagedCount", "unstagedCount", "untrackedCount",
-        "stagedFileList", "path", "branchName", "repoName", "remoteUrl", "tagName",
+        "stagedFileList", "path", "branchName", "repoName", "remoteUrl", "mergingFrom",
     };
 
     public static IReadOnlyDictionary<string, string> Bind(
@@ -40,6 +40,9 @@ public static class SlotBinder
             ["branchName"] = branchName ?? "the branch",
             ["tagName"] = tagName ?? "the tag",
             ["repoName"] = new DirectoryInfo(state.RepoRoot).Name,
+            // Comes from state rather than the request: merge-continue and merge-abort take
+            // no arguments, and still have to be able to say what they are acting on.
+            ["mergingFrom"] = state.Operation?.IncomingLabel ?? "another branch",
             // Described rather than blank when absent: the panel previews connect-remote
             // before anything has been typed.
             ["remoteUrl"] = string.IsNullOrWhiteSpace(remoteUrl)

@@ -48,6 +48,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         ChangesViewModel changes,
         HistoryViewModel history,
         BranchesViewModel branches,
+        OperationBannerViewModel operationBanner,
         RepoWatcher watcher,
         ThemeController themeController,
         ISettingsStore settings,
@@ -67,6 +68,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Changes = changes;
         History = history;
         Branches = branches;
+        OperationBanner = operationBanner;
 
         CycleThemeCommand = new RelayCommand(CycleTheme);
         CloseRepositoryCommand = new AsyncRelayCommand(CloseRepositoryAsync);
@@ -103,6 +105,12 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     public HistoryViewModel History { get; }
 
     public BranchesViewModel Branches { get; }
+
+    /// <summary>
+    /// Sits above the tab content rather than inside a tab: a half-done merge belongs to
+    /// the repository, so it has to be visible whichever tab is showing.
+    /// </summary>
+    public OperationBannerViewModel OperationBanner { get; }
 
     /// <summary>Sidebar entries. Bound to a ListBox, so no enum converter is needed.</summary>
     public IReadOnlyList<MainTab> Tabs { get; } =
@@ -184,6 +192,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             Changes.Update(state, _inspector.Inspect(state.RepoRoot));
             History.Update(state);
             Branches.Update(state);
+            OperationBanner.Update(state);
         }
         finally
         {

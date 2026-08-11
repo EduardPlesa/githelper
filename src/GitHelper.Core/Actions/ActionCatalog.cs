@@ -51,7 +51,14 @@ public static class ActionCatalog
             Title: "Commit",
             Danger: Danger.Caution,
             BuildArgs: (_, r) => new[] { "commit", "-m", r.Message! },
-            Preconditions: new IPrecondition[] { new RequiresMessage(), new RequiresStagedChanges() },
+            // RequiresNoOperationInProgress is not belt-and-braces: a plain commit mid-merge
+            // succeeds, and in succeeding it finalises the merge. Finishing a merge has to
+            // go through merge-continue, which says that is what it is doing.
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresMessage(), new RequiresStagedChanges(),
+                new RequiresNoOperationInProgress(),
+            },
             UndoActionId: "undo-last-commit"),
 
         new GitAction(
@@ -150,56 +157,45 @@ public static class ActionCatalog
             Preconditions: new IPrecondition[] { new RequiresRemote() }),
 
         new GitAction(
-            Id: "create-tag",
-            Title: "Tag this point",
-            Danger: Danger.Safe,
-            BuildArgs: (_, r) => new[] { "tag", "--", r.TagName! },
+            Id: "merge",
+            Title: "Bring this branch's work in",
+            Danger: Danger.Caution,
+            // --no-edit rather than trusting git's tty detection to skip the editor.
+            BuildArgs: (_, r) => new[] { "merge", "--no-edit", r.BranchName! },
             Preconditions: new IPrecondition[]
             {
-                new RequiresTagName(), new RequiresCommits(), new RequiresTagDoesNotExist(),
-            },
-            UndoActionId: "delete-tag"),
+                new RequiresBranchName(), new RequiresNotCurrentBranch(),
+                new RequiresNoUncommittedChanges(), new RequiresNoOperationInProgress(),
+            }),
 
         new GitAction(
-            Id: "delete-tag",
-            Title: "Delete tag",
-            Danger: Danger.Caution,
-            // Unlike branch -d, git has no refusal safety net here — tag -d always succeeds.
-            BuildArgs: (_, r) => new[] { "tag", "-d", "--", r.TagName! },
-            Preconditions: new IPrecondition[] { new RequiresTagName() }),
-
-        new GitAction(
-            Id: "stash",
-            Title: "Set changes aside",
+            Id: "mark-resolved",
+            Title: "Mark as fixed",
             Danger: Danger.Safe,
-            BuildArgs: (_, r) => string.IsNullOrWhiteSpace(r.Message)
-                ? new[] { "stash", "push" }
-                : new[] { "stash", "push", "-m", r.Message! },
-            Preconditions: new IPrecondition[] { new RequiresCommits(), new RequiresUncommittedChanges() },
-            UndoActionId: "stash-pop"),
+            // Same argv as stage-file, deliberately a separate action: the content id is the
+            // action id, and what this means to the user is a different sentence entirely.
+            BuildArgs: (_, r) => new[] { "add", "--", r.Path! },
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresPath(), new RequiresMergeInProgress(),
+            }),
 
         new GitAction(
-            Id: "stash-pop",
-            Title: "Bring back stashed changes",
+            Id: "merge-continue",
+            Title: "Finish the merge",
             Danger: Danger.Caution,
-            BuildArgs: (_, r) => new[] { "stash", "pop", r.StashRef! },
-            // Only offered against a clean tree, so this can never land on other unsaved
-            // edits and conflict with them -- the app has no operation-state model yet.
-            Preconditions: new IPrecondition[] { new RequiresStashRef(), new RequiresNoUncommittedChanges() }),
+            BuildArgs: (_, _) => new[] { "merge", "--continue" },
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresMergeInProgress(), new RequiresNoUnmergedFiles(),
+            }),
 
         new GitAction(
-            Id: "stash-apply",
-            Title: "Copy back stashed changes",
+            Id: "merge-abort",
+            Title: "Abandon the merge",
             Danger: Danger.Caution,
-            BuildArgs: (_, r) => new[] { "stash", "apply", r.StashRef! },
-            Preconditions: new IPrecondition[] { new RequiresStashRef(), new RequiresNoUncommittedChanges() }),
-
-        new GitAction(
-            Id: "stash-drop",
-            Title: "Delete stash",
-            Danger: Danger.Destructive,
-            BuildArgs: (_, r) => new[] { "stash", "drop", r.StashRef! },
-            Preconditions: new IPrecondition[] { new RequiresStashRef() }),
+            BuildArgs: (_, _) => new[] { "merge", "--abort" },
+            Preconditions: new IPrecondition[] { new RequiresMergeInProgress() }),
     };
 
     private static readonly Dictionary<string, GitAction> ById =

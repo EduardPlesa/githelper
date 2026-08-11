@@ -1,7 +1,7 @@
 # GitHelper — Roadmap
 
 **Status:** living document
-**Last updated:** 2026-07-28
+**Last updated:** 2026-08-11
 
 This records what GitHelper does *not* do yet, why, and in what order those gaps should close.
 It exists so the absences read as decisions rather than oversights — and so that a decision made
@@ -77,7 +77,34 @@ proved it was in, and leaves the stash in place.
 
 ### Bucket 2 — The one real architectural gap
 
-**Merge and rebase.**
+**~~Merge~~ (shipped) and rebase.**
+
+**Operation state and merge shipped ahead of v1.1**, on the reasoning below: it changes what
+"an action" means, so building anything else against the old meaning means building it twice.
+What it cost, against what this section predicted:
+
+- **Operation state in `RepoState`** — as predicted, a nullable `OperationState`. Detection is
+  `git rev-parse -q --verify MERGE_HEAD` rather than a `.git/MERGE_HEAD` probe, which is wrong
+  in a linked worktree.
+- **A persistent band** — as predicted, and it survives restart for free: state is read from
+  the repository every refresh and never cached.
+- **Actions that resume** — *not* as predicted. `merge-continue` and `merge-abort` are ordinary
+  `GitAction` descriptors, and `GitAction`, `ActionService`, `ActionRequest` and the explain
+  panel all took them unchanged. The misfit this section anticipated was about where the button
+  lives, not about the shape of an action.
+
+Two things this section did not anticipate:
+
+- **A stopped merge is not a failure.** `git merge` exits non-zero on conflicts, which routed
+  it to the error panel. `ActionOutcome.Paused` is derived from the observed operation
+  transition rather than the exit code.
+- **`git commit` mid-merge finalises the merge.** It succeeds, so nothing refused it — the
+  Commit button would have ended a merge with a message written for something else. `commit`
+  now carries `RequiresNoOperationInProgress`.
+
+**Rebase** still stands, and reuses all of the above. It adds the sequencer — stopping
+repeatedly, `--skip`, and step-of-total progress — plus the first genuinely history-rewriting
+action in the app.
 
 The entire flow assumes an action is **atomic**: preview → run → narrate → done. Merge and rebase
 break that assumption. `git merge` can stop mid-operation and leave the repository in a state the
@@ -151,29 +178,43 @@ them, and a beginner who genuinely needs submodules needs a colleague, not a GUI
 
 | Version | Contents | Why here |
 |---|---|---|
-| **v1.1** | ~~Remote management, tags, stash~~ (all shipped) | No new concepts; proved the descriptor model scales past the original thirteen |
-| **v2** | **Operation state**, then merge and rebase | The load-bearing change everything below depends on |
-| **v2.5** | Diff viewer | Independent of v2, and a prerequisite for v3 |
+| **v1.1** | ~~Remote management~~ (shipped), tags, stash | No new concepts; proves the descriptor model scales past the original thirteen |
+| **v2** | ~~Operation state, then merge~~ (shipped) | The load-bearing change everything below depends on, so it went first |
+| **v2.1** | Rebase | Rides on v2's operation state; adds the sequencer and history rewriting |
+| **v2.5** | Diff viewer | Independent of the above, and a prerequisite for v3 |
 | **v3** | Guided conflict resolution | Sits on v2 + v2.5 |
+
 | **—** | Hunk staging, submodules | Declined above |
+
+**v2 shipped before v1.1.** The order in this table was the plan; the argument in Bucket 2 —
+do the load-bearing change before anything that depends on it — won. v1.1's tags and stash
+plan predates the `RepoState` shape v2 left behind and needs rewriting against it.
 
 ---
 
 ## Known strain points
 
-Two parts of the current design will come under pressure at v2. Neither is a defect today; both
-are worth knowing before committing to that work.
+Two parts of the design were expected to come under pressure at v2. Merge has now been built,
+so both can be reported on rather than predicted.
 
-**The `Danger` enum is three-valued, and `discard-file` is currently the only `Destructive`
-action.** The modal is effectively shaped around one consequence sentence. Rebase — and force-push,
-if it is ever added — would introduce destructive actions whose consequences have a quite different
-shape. Expect the modal to need generalising, and expect that to be the moment the three-value
-model is questioned.
+**The `Danger` enum is three-valued, and `discard-file` is still the only `Destructive`
+action.** Merge did not force this after all. `merge-abort` is the closest call in the app —
+it destroys hand-resolved conflict work unrecoverably — and it is `Caution`, on the grounds
+that the modal's consequence sentence is hardcoded for `discard-file` and generalising it for
+one action would be guessing at a shape not yet visible. **This is deferred, not resolved.**
+Rebase, and force-push if it is ever added, will force it, and that is the moment the
+three-value model gets questioned.
 
 **Narration snapshots repository state before and after, then describes the observed
-difference.** That is elegant for atomic actions and awkward for pausable ones. "What happened"
-for a merge that stopped halfway is a genuinely harder sentence to generate than "what happened"
-for a commit, and the current `Narrator` has no vocabulary for partial completion.
+difference.** This survived intact. `Narrator` gained three sentences for operations starting
+and ending, and which one applies is decided by whether a commit appeared — observed, not
+inferred from which action ran. The worry that partial completion had no vocabulary turned out
+to be a vocabulary problem rather than a structural one.
+
+One strain point that was **not** anticipated, and is worth carrying into rebase: `Success` on
+`ActionOutcome` means the exit code, and an operation that pauses exits non-zero. `Paused`
+patches this for merge. Rebase pauses repeatedly, so the question of what `Success` means for a
+multi-step operation will get sharper, not softer.
 
 ---
 

@@ -310,4 +310,54 @@ public class ActionServiceTests
         await Assert.ThrowsAsync<ArgumentException>(
             () => NewService().RunAsync(repo.Path, new ActionRequest("no-such-action")));
     }
+
+    [Fact]
+    public async Task RunAsync_TreatsAMergeThatStoppedAsPausedRatherThanFailed()
+    {
+        // git merge exits non-zero when it stops on conflicts. That is not a failure — it
+        // did exactly what it was asked — so it must not be reported as an error.
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("checkout", "-q", "-b", "feature");
+        repo.WriteFile("conflict.txt", "theirs\n");
+        await repo.GitAsync("add", "-A");
+        await repo.GitAsync("commit", "-q", "-m", "theirs");
+        await repo.GitAsync("checkout", "-q", "main");
+        repo.WriteFile("conflict.txt", "ours\n");
+        await repo.GitAsync("add", "-A");
+        await repo.GitAsync("commit", "-q", "-m", "ours");
+
+        var outcome = await NewService().RunAsync(
+            repo.Path, new ActionRequest("merge", BranchName: "feature"));
+
+        Assert.True(outcome.Paused);
+        Assert.False(outcome.Success);
+        Assert.Null(outcome.Error);
+        Assert.Contains("stopped", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RunAsync_DoesNotCallAnOrdinaryFailurePaused()
+    {
+        using var repo = await TestRepo.CreateAsync();
+
+        var outcome = await NewService().RunAsync(
+            repo.Path, new ActionRequest("switch-branch", BranchName: "no-such-branch"));
+
+        Assert.False(outcome.Paused);
+        Assert.False(outcome.Success);
+        Assert.NotNull(outcome.Error);
+    }
+
+    [Fact]
+    public async Task RunAsync_DoesNotCallASuccessfulActionPaused()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("a.txt", "x\n");
+
+        var outcome = await NewService().RunAsync(
+            repo.Path, new ActionRequest("stage-file", Path: "a.txt"));
+
+        Assert.True(outcome.Success);
+        Assert.False(outcome.Paused);
+    }
 }

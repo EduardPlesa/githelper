@@ -10,6 +10,7 @@ public class NarratorTests
         int ahead = 0,
         int behind = 0,
         CommitInfo[]? commits = null,
+        OperationState? operation = null,
         params FileChange[] changes)
         => new(
             @"C:\repos\demo", branch, branch is null, "origin/main", ahead, behind,
@@ -18,8 +19,7 @@ public class NarratorTests
             Changes: changes,
             RecentCommits: commits ?? Array.Empty<CommitInfo>(),
             Branches: Array.Empty<BranchInfo>(),
-            Tags: Array.Empty<TagInfo>(),
-            Stashes: Array.Empty<StashInfo>());
+            Operation: operation);
 
     private static CommitInfo Commit(string hash, string subject)
         => new(hash + "0000", hash, "Test User", DateTimeOffset.UnixEpoch, subject);
@@ -80,5 +80,57 @@ public class NarratorTests
         var narration = Narrator.Describe(State(), State());
 
         Assert.Contains("no change", narration, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static OperationState Merging(string? from = "feature")
+        => new(OperationKind.Merge, from);
+
+    private static FileChange Conflicted(string path)
+        => new(path, null, ChangeKind.Unmerged, ChangeKind.Unmerged);
+
+    [Fact]
+    public void Describe_ReportsAMergeThatStoppedAndHowManyFilesNeedAttention()
+    {
+        var after = State(
+            operation: Merging(),
+            changes: new[] { Conflicted("a.txt"), Conflicted("b.txt") });
+
+        var narration = Narrator.Describe(State(), after);
+
+        Assert.Contains("stopped", narration, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("2", narration);
+    }
+
+    [Fact]
+    public void Describe_ReportsAMergeThatFinished()
+    {
+        var before = State(operation: Merging(), changes: Conflicted("a.txt"));
+        var after = State(commits: new[] { Commit("aaa", "Merge branch 'feature'") });
+
+        var narration = Narrator.Describe(before, after);
+
+        Assert.Contains("merge is finished", narration, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Describe_ReportsAMergeThatWasAbandoned()
+    {
+        // No commit appeared, so the merge ended without producing anything.
+        var before = State(operation: Merging(), changes: Conflicted("a.txt"));
+
+        var narration = Narrator.Describe(before, State());
+
+        Assert.Contains("abandoned", narration, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Describe_SaysNothingAboutAMergeThatWasAlreadyRunningAndStillIs()
+    {
+        var before = State(operation: Merging(), changes: new[] { Conflicted("a.txt"), Conflicted("b.txt") });
+        var after = State(operation: Merging(), changes: Conflicted("b.txt"));
+
+        var narration = Narrator.Describe(before, after);
+
+        Assert.DoesNotContain("merge", narration, StringComparison.OrdinalIgnoreCase);
     }
 }

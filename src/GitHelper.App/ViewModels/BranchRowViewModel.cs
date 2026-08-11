@@ -20,10 +20,15 @@ public sealed class BranchRowViewModel : ViewModelBase
         CanSwitch = !isCurrent;
         CanDelete = !isCurrent;
 
+        // Nor can you merge a branch into itself.
+        CanMerge = !isCurrent;
+
         SwitchCommand = new AsyncRelayCommand(
             () => invokeAction("switch-branch", branch.Name), () => CanSwitch);
         DeleteCommand = new AsyncRelayCommand(
             () => invokeAction("delete-branch", branch.Name), () => CanDelete);
+        MergeCommand = new AsyncRelayCommand(
+            () => invokeAction("merge", branch.Name), () => CanMerge);
     }
 
     public string Name { get; }
@@ -36,7 +41,15 @@ public sealed class BranchRowViewModel : ViewModelBase
 
     public bool CanDelete { get; }
 
+    public bool CanMerge { get; }
+
     public IAsyncRelayCommand SwitchCommand { get; }
 
     public IAsyncRelayCommand DeleteCommand { get; }
+
+    /// <summary>
+    /// Brings this branch's work into the one you are on. Caution, so it previews and waits
+    /// rather than running on click — it can stop half-way on conflicts.
+    /// </summary>
+    public IAsyncRelayCommand MergeCommand { get; }
 }

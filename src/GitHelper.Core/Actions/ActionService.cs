@@ -140,8 +140,8 @@ public sealed class ActionService(
         return new ActionOutcome(
             Success: result.Success,
             Result: result,
-            Narration: result.Success ? Narrator.Describe(before, after) : null,
-            Error: ErrorTranslator.Translate(result),
+            Narration: result.Success || paused ? Narrator.Describe(before, after) : null,
+            Error: paused ? null : ErrorTranslator.Translate(result),
             Before: before,
             After: after,
             Blockers: Array.Empty<PreconditionResult>());

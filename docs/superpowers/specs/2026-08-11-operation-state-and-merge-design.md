@@ -1,9 +1,11 @@
 # Operation State and Merge (v2) — Design
 
-**Status:** approved, not yet planned
+**Status:** approved, in implementation
 **Date:** 2026-08-11
-**Depends on:** v1.1 (tags and stash) landing first — both change `RepoState`, which is a
-positional record, so both touch every construction site in the solution.
+**Order:** built **before** v1.1 (tags and stash), against `RepoState` as it stands on
+`main`. Both change `RepoState`, which is a positional record, so both touch every
+construction site in the solution — whichever lands second absorbs that cost. The tags and
+stash plan will need rewriting against the shape this leaves behind.
 
 ---
 

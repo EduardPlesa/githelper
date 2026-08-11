@@ -11,6 +11,7 @@ public class PreconditionTests
         bool hasRemote = true,
         bool hasCommits = true,
         int commitCount = 2,
+        OperationState? operation = null,
         params FileChange[] changes)
         => new(
             RepoRoot: @"C:\repos\demo",
@@ -25,7 +26,8 @@ public class PreconditionTests
             RecentCommits: Enumerable.Range(0, commitCount)
                 .Select(i => new CommitInfo($"h{i}", $"h{i}", "A", DateTimeOffset.UnixEpoch, $"c{i}"))
                 .ToList(),
-            Branches: new[] { new BranchInfo("main", "origin/main"), new BranchInfo("feature", null) });
+            Branches: new[] { new BranchInfo("main", "origin/main"), new BranchInfo("feature", null) },
+            Operation: operation);
 
     private static ActionRequest Request(
         string? path = null, string? message = null, string? branchName = null)

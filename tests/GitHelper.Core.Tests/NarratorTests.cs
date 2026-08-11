@@ -10,6 +10,7 @@ public class NarratorTests
         int ahead = 0,
         int behind = 0,
         CommitInfo[]? commits = null,
+        OperationState? operation = null,
         params FileChange[] changes)
         => new(
             @"C:\repos\demo", branch, branch is null, "origin/main", ahead, behind,
@@ -17,7 +18,8 @@ public class NarratorTests
             HasRemote: true,
             Changes: changes,
             RecentCommits: commits ?? Array.Empty<CommitInfo>(),
-            Branches: Array.Empty<BranchInfo>());
+            Branches: Array.Empty<BranchInfo>(),
+            Operation: operation);
 
     private static CommitInfo Commit(string hash, string subject)
         => new(hash + "0000", hash, "Test User", DateTimeOffset.UnixEpoch, subject);

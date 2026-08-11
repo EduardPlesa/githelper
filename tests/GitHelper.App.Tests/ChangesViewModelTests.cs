@@ -254,6 +254,7 @@ public class ChangesViewModelTests
             RecentCommits: Enumerable.Range(0, count)
                 .Select(i => new CommitInfo($"h{i}", $"h{i}", "A", DateTimeOffset.UnixEpoch, $"c{i}"))
                 .ToArray(),
-            Branches: Array.Empty<BranchInfo>());
+            Branches: Array.Empty<BranchInfo>(),
+            Operation: null);
     }
 }

@@ -29,6 +29,13 @@ public class ErrorTranslatorTests
     // repository with no global identity set.
     [InlineData("*** Please tell me who you are.\n\nfatal: unable to auto-detect email address", "who you are")]
     [InlineData("fatal: No stash entries found.", "stash")]
+    // Real git output, verbatim. This app serializes its own git commands, so it can only
+    // reach a user when something outside the app holds the lock — a terminal, or an
+    // editor's git integration.
+    [InlineData(
+        "fatal: Unable to create 'C:/repos/demo/.git/index.lock': File exists.\n\n"
+        + "Another git process seems to be running in this repository, or the lock file may be stale",
+        "another program")]
     public void Translate_RecognisesKnownFailures(string stdErr, string expectedFragment)
     {
         var translated = ErrorTranslator.Translate(Failure(stdErr))!;

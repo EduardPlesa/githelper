@@ -139,6 +139,26 @@ public static class ErrorTranslator
             "The name given does not match a file or a branch that git knows about.",
             new[] { "Check the spelling, and that the file has not been moved or deleted." }),
 
+        // This app runs one git command at a time per repository (SerializedGitRunner), so
+        // it cannot collide with itself. Reaching a user means something outside the app
+        // holds the lock — a terminal, an editor's git integration, a paused rebase — or a
+        // previous git was killed and left the file behind. The copy covers both without
+        // asking the user to work out which.
+        new("index.lock",
+            "Something else is using this project right now",
+            "Git allows one command at a time to change a project, and another program is "
+            + "part-way through one. This is git protecting your work rather than anything "
+            + "going wrong.",
+            new[]
+            {
+                "Wait a moment and try again.",
+                "If another program is doing something with this project — a terminal, or your "
+                + "editor — let it finish first.",
+                "If nothing else is running, a previous command was interrupted and left the "
+                + "file `.git/index.lock` behind. Deleting that file is safe once you are sure "
+                + "no git command is running.",
+            }),
+
         new("no stash entries found",
             "That stash is no longer there",
             "There is nothing stashed right now. It may already have been brought back, "

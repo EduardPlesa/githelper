@@ -91,6 +91,42 @@ public sealed class TestRepo : IDisposable
         await GitAsync("rebase", baseBranch);
     }
 
+    /// <summary>
+    /// Leaves the repository part-way through a rebase of <b>two</b> conflicting commits,
+    /// stopped on the first of them.
+    ///
+    /// The one-commit fixture above can only ever stop once, so continuing from its single
+    /// stop always finishes the rebase. A rebase that stops a second time is a different
+    /// code path — git exits non-zero with the sequencer still in place — and it is the one
+    /// a real user hits. It needs a second commit whose replay conflicts too, which is what
+    /// this builds: "my work 2" rewrites the same line again, so once "my work 1" has been
+    /// resolved to anything other than its original text, replaying it conflicts.
+    /// </summary>
+    /// <returns>
+    /// The path of the conflicted file, so a caller can resolve it without repeating the name.
+    /// </returns>
+    public async Task<string> StartTwiceConflictingRebaseAsync(string baseBranch = "main")
+    {
+        WriteFile("conflict.txt", "original\n");
+        await GitAsync("add", "-A");
+        await GitAsync("commit", "-q", "-m", "add conflict.txt");
+
+        await GitAsync("checkout", "-q", "-b", "feature");
+        WriteFile("conflict.txt", "mine 1\n");
+        await GitAsync("commit", "-q", "-a", "-m", "my work 1");
+        WriteFile("conflict.txt", "mine 2\n");
+        await GitAsync("commit", "-q", "-a", "-m", "my work 2");
+
+        await GitAsync("checkout", "-q", baseBranch);
+        WriteFile("conflict.txt", "theirs\n");
+        await GitAsync("commit", "-q", "-a", "-m", "their work");
+
+        await GitAsync("checkout", "-q", "feature");
+        await GitAsync("rebase", baseBranch);
+
+        return "conflict.txt";
+    }
+
     public void Dispose()
     {
         try

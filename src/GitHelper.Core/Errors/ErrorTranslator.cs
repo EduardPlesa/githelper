@@ -5,11 +5,17 @@ namespace GitHelper.Core.Errors;
 /// <summary>Turns git's stderr into plain English, or admits when it cannot.</summary>
 public static class ErrorTranslator
 {
+    /// <param name="OnlyForActions">
+    /// When set, the rule matches only for those action ids. This exists for copy that is
+    /// true of one command and a lie from any other — a bare substring of git's output is
+    /// not a strong enough guard once a second command can produce the same word.
+    /// </param>
     private sealed record Rule(
         string Pattern,
         string Summary,
         string Explanation,
-        string[] NextSteps);
+        string[] NextSteps,
+        string[]? OnlyForActions = null);
 
     /// <summary>Ordered, first match wins. Specific patterns must precede general ones.</summary>
     private static readonly Rule[] Rules =
@@ -165,10 +171,12 @@ public static class ErrorTranslator
             + "deleted, or removed from outside this app.",
             new[] { "Refresh and check the list again." }),
 
-        // Reachable only via stash-pop/stash-apply in this app (nothing else here can
-        // produce a three-way-merge conflict). ActionService verifies the rollback actually
-        // cleared the tree before this copy is ever shown — if it did not, it returns a
-        // different error instead, so "put back" here stays a fact rather than a hope.
+        // Scoped to stash-pop/stash-apply by action id, not by hoping nothing else prints
+        // "CONFLICT". Rebase now does, and every promise below — files put back, the stash
+        // still there — is false mid-rebase. The scope is the guarantee: this copy can only
+        // be shown for the two commands ActionService rolls back, and it verifies that
+        // rollback actually cleared the tree before letting this be shown at all — if it did
+        // not, it returns a different error instead. "Put back" is therefore a fact.
         new("CONFLICT",
             "That stash clashes with what's on this branch now",
             "Bringing it back would have mixed it into commits made since it was set aside, "
@@ -180,10 +188,16 @@ public static class ErrorTranslator
                 + "then try again.",
                 "Or open the file yourself to combine the two versions; this app does not "
                 + "yet walk you through resolving a clash like this.",
-            }),
+            },
+            OnlyForActions: new[] { "stash-pop", "stash-apply" }),
     };
 
-    public static TranslatedError? Translate(GitCommandResult result)
+    /// <param name="actionId">
+    /// The action that produced this result, when there is one. Rules scoped to particular
+    /// actions are skipped without it, so a caller that has no action id — setup, which runs
+    /// before any repository exists — can never reach action-specific copy by accident.
+    /// </param>
+    public static TranslatedError? Translate(GitCommandResult result, string? actionId = null)
     {
         if (result.Success) return null;
 
@@ -192,6 +206,10 @@ public static class ErrorTranslator
 
         foreach (var rule in Rules)
         {
+            if (rule.OnlyForActions is { } scope
+                && (actionId is null || !scope.Contains(actionId, StringComparer.Ordinal)))
+                continue;
+
             if (raw.Contains(rule.Pattern, StringComparison.OrdinalIgnoreCase))
                 return new TranslatedError(
                     rule.Summary, rule.Explanation, rule.NextSteps, raw, IsUnderstood: true);

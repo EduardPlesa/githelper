@@ -171,7 +171,21 @@ public class NarratorTests
 
         var narration = Narrator.Describe(before, after);
 
-        Assert.Contains("up to date", narration, StringComparison.OrdinalIgnoreCase);
+        // The base is named: "up to date" alone leaves the user to remember what with.
+        Assert.Contains("up to date with main", narration, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Describe_ReportsARebaseThatFinishedWithoutNamingABaseItCannotName()
+    {
+        var before = State(
+            operation: new OperationState(OperationKind.Rebase, null, new RebaseProgress(1, 1, "my work")),
+            changes: Conflicted("a.txt"));
+        var after = State(commits: new[] { Commit("aaa", "my work") });
+
+        var narration = Narrator.Describe(before, after);
+
+        Assert.Contains("Your branch is now up to date.", narration, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -181,6 +195,41 @@ public class NarratorTests
 
         var narration = Narrator.Describe(before, State());
 
-        Assert.Contains("abandoned", narration, StringComparison.OrdinalIgnoreCase);
+        // The rebase-specific sentence, not merely "abandoned" — which the merge wording
+        // also contains, so asserting on it alone discriminates nothing.
+        Assert.Contains(
+            "The update was abandoned. Your branch is back as it was.",
+            narration,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Describe_SaysNothingAboutTheCommitListWhileARebaseIsInFlight()
+    {
+        // RecentCommits is HEAD's log, and a rebase detaches HEAD onto the base: the commits
+        // still waiting to be replayed are simply absent from it. Diffing would announce them
+        // as removed from the history, which would be a plain lie — nothing was removed.
+        var before = State(commits: new[] { Commit("bbb", "my work 2"), Commit("aaa", "my work 1") });
+        var after = State(
+            commits: new[] { Commit("ccc", "their work") },
+            operation: Rebasing(),
+            changes: Conflicted("a.txt"));
+
+        var narration = Narrator.Describe(before, after);
+
+        Assert.DoesNotContain("Removed commit", narration, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Created commit", narration, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("stopped", narration, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Describe_StillReportsCommitsWhenNoOperationIsInvolvedEitherSide()
+    {
+        // The suppression above must not reach an ordinary commit or undo, which is where
+        // the commit sentences earn their keep.
+        var before = State(commits: new[] { Commit("aaa", "initial") });
+        var after = State(commits: new[] { Commit("bbb", "second"), Commit("aaa", "initial") });
+
+        Assert.Contains("Created commit", Narrator.Describe(before, after), StringComparison.Ordinal);
     }
 }

@@ -120,8 +120,11 @@ public sealed partial class OperationBannerViewModel : ViewModelBase
                    + "fix the marked sections, then mark it fixed in the Changes tab.";
         }
 
+        // "All conflicts fixed" would be an assertion about conflicts that a rebase can pause
+        // without ever having had — git also stops for a commit that has become empty. The
+        // merge wording keeps it, because a merge only ever pauses on a conflict.
         return IsRebase
-            ? "All conflicts fixed. Carry on to replay the rest of your commits."
+            ? "Nothing is conflicted. Carry on to replay the rest of your commits."
             : "All conflicts fixed. Finish the merge to save it as a commit.";
     }
 

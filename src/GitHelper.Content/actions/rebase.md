@@ -17,8 +17,9 @@ would be left holding a version that no longer exists.
 ## risks
 If a commit being replayed touches the same lines as work already on {branchName}, git stops
 and hands that file to you. This is a [[conflict|conflict]], and a banner at the top of the
-window will say which commit it stopped on and how many are left. Nothing is lost while that
-banner is showing.
+window will say which commit it stopped on and how many are left. Everything is still
+recoverable while that banner is showing — with one exception: **Skip this commit** drops the
+commit git stopped on, and that one is gone for good.
 
 Everything must be committed before you start, so git has a clean point to put back if you
 change your mind.

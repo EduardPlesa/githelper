@@ -224,14 +224,26 @@ the question; rebase, which this document expected to, did not.
 
 **Narration snapshots repository state before and after, then describes the observed
 difference.** This survived intact. `Narrator` gained three sentences for operations starting
-and ending, and which one applies is decided by whether a commit appeared — observed, not
-inferred from which action ran. The worry that partial completion had no vocabulary turned out
-to be a vocabulary problem rather than a structural one.
+and ending — rebase later took that to seven — and which one applies is decided by whether a
+commit appeared, observed, not inferred from which action ran. The worry that partial
+completion had no vocabulary turned out to be a vocabulary problem rather than a structural
+one.
 
-One strain point that was **not** anticipated, and is worth carrying into rebase: `Success` on
+One strain point was **not** anticipated at merge, and rebase duly broke on it: `Success` on
 `ActionOutcome` means the exit code, and an operation that pauses exits non-zero. `Paused`
-patches this for merge. Rebase pauses repeatedly, so the question of what `Success` means for a
-multi-step operation will get sharper, not softer.
+patched this for merge by defining a pause as the *transition* into an operation — which is
+indistinguishable from the right answer as long as the operation only ever stops once. A
+rebase stops repeatedly, and `rebase --continue` that stops on the next commit's conflict
+exits non-zero with the sequencer still in place, so under that definition it was not paused
+and the user who had just fixed a conflict was shown an error for a command that did exactly
+what was asked.
+
+The resolution kept the discipline rather than reaching for the action id: a pause is now an
+operation still in flight **after** the command, and — when one was already in flight — the
+operation having visibly *moved*, by the sequencer counter or by HEAD. Both halves are
+observed state. The second half is what stops an unrelated command that fails mid-operation
+from having its real error swallowed. `Success` still means the exit code and nothing else;
+what changed is the question asked alongside it.
 
 ---
 

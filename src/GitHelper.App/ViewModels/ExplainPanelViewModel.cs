@@ -37,7 +37,6 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
 
     private string? _repoPath;
     private ActionRequest? _request;
-    private IReadOnlyDictionary<string, string> _slots = new Dictionary<string, string>();
     private IReadOnlyList<ContentBlock> _consequence = NoBlocks;
 
     private string? _folderPath;
@@ -175,7 +174,6 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
 
         _repoPath = repoPath;
         _request = request;
-        _slots = preview.Slots;
 
         Title = preview.Action.Title;
         CommandLine = preview.CommandLine;
@@ -274,7 +272,6 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
         // Arming the setup path disarms the action path, so the two can never both fire.
         _repoPath = null;
         _request = null;
-        _slots = new Dictionary<string, string>();
         _consequence = NoBlocks;
 
         _folderPath = folderPath;
@@ -373,7 +370,6 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     {
         _repoPath = null;
         _request = null;
-        _slots = new Dictionary<string, string>();
         _consequence = NoBlocks;
 
         _folderPath = null;

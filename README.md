@@ -168,7 +168,7 @@ Twenty-nine actions, covering roughly the 90% of beginner git.
 | Bring back stashed changes | `git stash pop <ref>` | Caution |
 | Copy back stashed changes | `git stash apply <ref>` | Caution |
 | Delete stash | `git stash drop <ref>` | **Destructive** |
-| Bring a branch up to date | `git rebase <base>` | Caution |
+| Bring this branch up to date | `git rebase <base>` | Caution |
 | Carry on with the update | `git rebase --continue` | Caution |
 | Skip this commit | `git rebase --skip` | **Destructive** |
 | Abandon the update | `git rebase --abort` | Caution |

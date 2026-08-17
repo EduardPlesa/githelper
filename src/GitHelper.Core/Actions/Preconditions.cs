@@ -133,7 +133,8 @@ public sealed class RequiresNotCurrentBranch : IPrecondition
     public PreconditionResult Evaluate(RepoState state, ActionRequest request)
         => string.Equals(request.BranchName, state.Branch, StringComparison.Ordinal)
             ? PreconditionResult.Fail(
-                "You are on this branch right now. Switch to a different branch before deleting it.")
+                // Delete, merge and rebase all use this, so the message names no one of them.
+                "You are on this branch right now. Switch to a different branch first.")
             : PreconditionResult.Ok;
 }
 
@@ -238,6 +239,11 @@ public sealed class RequiresNoUpstream : IPrecondition
 /// <summary>
 /// Guards anything that must not run while git has an operation half-done. Most such
 /// commands git refuses by itself; this exists for the ones that would quietly succeed.
+///
+/// The message is deliberately operation-neutral. This guard is satisfied by no operation of
+/// any kind, so naming one would be wrong half the time — and the band it sends the user to
+/// already names what is in flight, and labels its own buttons accordingly. Staying neutral
+/// keeps this one sentence correct when cherry-pick and revert join the enum.
 /// </summary>
 public sealed class RequiresNoOperationInProgress : IPrecondition
 {
@@ -245,8 +251,9 @@ public sealed class RequiresNoOperationInProgress : IPrecondition
         => state.Operation is null
             ? PreconditionResult.Ok
             : PreconditionResult.Fail(
-                "You are part-way through a merge. Finish it or abandon it before starting "
-                + "something else — the banner at the top has both.");
+                "You are part-way through something already — the banner at the top of the "
+                + "window says what. Finish it or abandon it there before starting something "
+                + "else.");
 }
 
 public sealed class RequiresNoUnmergedFiles : IPrecondition

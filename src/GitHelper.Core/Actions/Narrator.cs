@@ -16,7 +16,16 @@ public static class Narrator
         var parts = new List<string>();
 
         DescribeOperation(before, after, parts);
-        DescribeCommits(before, after, parts);
+
+        // While an operation is in flight on either side, DescribeOperation owns the story
+        // and the commit list is not evidence. RecentCommits is HEAD's log, and a rebase
+        // detaches HEAD onto the base: the commits still waiting to be replayed are simply
+        // absent from it, and diffing would announce them as removed from the history. They
+        // have not been removed from anything. A merge never exposed this because a
+        // conflicted merge leaves HEAD where it was.
+        if (before.Operation is null && after.Operation is null)
+            DescribeCommits(before, after, parts);
+
         DescribeBranch(before, after, parts);
         DescribeStaging(before, after, parts);
         DescribeSync(before, after, parts);
@@ -60,9 +69,16 @@ public static class Narrator
         // appeared and not — which is observed, not assumed from which action ran.
         var committed = after.RecentCommits.Count > before.RecentCommits.Count;
 
+        // Naming the base is the point of the sentence — "up to date" on its own leaves the
+        // user to remember what with. Null when the base commit has no reachable name, in
+        // which case the sentence stops short rather than inventing one.
+        var onto = before.Operation.IncomingLabel;
+
         parts.Add((before.Operation.Kind, committed) switch
         {
-            (OperationKind.Rebase, true) => "Your branch is now up to date.",
+            (OperationKind.Rebase, true) => onto is null
+                ? "Your branch is now up to date."
+                : $"Your branch is now up to date with {onto}.",
             (OperationKind.Rebase, false) =>
                 "The update was abandoned. Your branch is back as it was.",
             (_, true) => "The merge is finished.",

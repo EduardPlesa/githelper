@@ -1,8 +1,8 @@
 namespace GitHelper.Core.Model;
 
 /// <summary>
-/// The kinds of operation git can start and not finish. Only merge exists today; rebase,
-/// cherry-pick and revert join it as each is built.
+/// The kinds of operation git can start and not finish. Merge and rebase exist today;
+/// cherry-pick and revert join them as each is built.
 /// </summary>
 public enum OperationKind
 {

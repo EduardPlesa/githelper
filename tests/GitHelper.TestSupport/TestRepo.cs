@@ -68,6 +68,29 @@ public sealed class TestRepo : IDisposable
         await GitAsync("merge", "--no-edit", branchName);
     }
 
+    /// <summary>
+    /// Leaves the repository part-way through a rebase, stopped on one conflicted commit:
+    /// this branch and <paramref name="baseBranch"/> have each rewritten the same line.
+    /// The rebase command itself exits non-zero, which is exactly the case under test.
+    /// </summary>
+    public async Task StartConflictingRebaseAsync(string baseBranch = "main")
+    {
+        WriteFile("conflict.txt", "original\n");
+        await GitAsync("add", "-A");
+        await GitAsync("commit", "-q", "-m", "add conflict.txt");
+
+        await GitAsync("checkout", "-q", "-b", "feature");
+        WriteFile("conflict.txt", "mine\n");
+        await GitAsync("commit", "-q", "-a", "-m", "my work");
+
+        await GitAsync("checkout", "-q", baseBranch);
+        WriteFile("conflict.txt", "theirs\n");
+        await GitAsync("commit", "-q", "-a", "-m", "their work");
+
+        await GitAsync("checkout", "-q", "feature");
+        await GitAsync("rebase", baseBranch);
+    }
+
     public void Dispose()
     {
         try

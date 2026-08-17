@@ -21,3 +21,7 @@ and look before deciding.
 ## undo
 There is no undo. Git keeps unreferenced commits for a while, but reaching them means using
 git directly, outside this app.
+
+## consequence
+**This drops the commit git stopped on, and everything in it, from your branch.** This app
+offers no way to bring it back.

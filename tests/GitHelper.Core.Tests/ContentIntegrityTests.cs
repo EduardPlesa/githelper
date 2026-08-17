@@ -99,6 +99,34 @@ public class ContentIntegrityTests
     }
 
     [Fact]
+    public void EveryDestructiveActionSpellsOutItsConsequence()
+    {
+        // The modal sentence used to be a switch on action id in a viewmodel, which meant a
+        // new destructive action silently inherited discard-file's wording. Keeping the
+        // sentence beside the action's other copy makes that impossible.
+        foreach (var action in ActionCatalog.All.Where(a => a.Danger == Danger.Destructive))
+        {
+            var document = Library.Actions[action.ExplanationId];
+            Assert.True(
+                document.Consequence.Count > 0,
+                $"{action.Id} is Destructive and needs a '## consequence' section.");
+        }
+    }
+
+    [Fact]
+    public void OnlyDestructiveActionsCarryAConsequence()
+    {
+        // A consequence on a Safe or Caution action is copy nothing will ever show.
+        foreach (var action in ActionCatalog.All.Where(a => a.Danger != Danger.Destructive))
+        {
+            var document = Library.Actions[action.ExplanationId];
+            Assert.True(
+                document.Consequence.Count == 0,
+                $"{action.Id} is not Destructive, so its '## consequence' would never be shown.");
+        }
+    }
+
+    [Fact]
     public void EveryActionExplainsWhatItDoesAndWhatCouldGoWrong()
     {
         foreach (var action in ActionCatalog.All)

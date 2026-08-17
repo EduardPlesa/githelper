@@ -11,6 +11,9 @@ public static partial class ContentParser
 {
     private static readonly string[] RequiredSections = { "what", "risks", "undo" };
 
+    /// <summary>Optional, and only meaningful for a Destructive action.</summary>
+    private const string ConsequenceSection = "consequence";
+
     private static readonly IDeserializer Yaml = new DeserializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
         .IgnoreUnmatchedProperties()
@@ -63,7 +66,10 @@ public static partial class ContentParser
             UndoActionId: string.IsNullOrWhiteSpace(matter.Undo) ? null : matter.Undo,
             What: ParseBlocks(sections["what"]),
             Risks: ParseBlocks(sections["risks"]),
-            Undo: ParseBlocks(sections["undo"]));
+            Undo: ParseBlocks(sections["undo"]),
+            Consequence: sections.TryGetValue(ConsequenceSection, out var consequence)
+                ? ParseBlocks(consequence)
+                : Array.Empty<ContentBlock>());
     }
 
     private static (string Frontmatter, string Body) SplitFrontmatter(string fileText, string sourceName)
@@ -102,9 +108,11 @@ public static partial class ContentParser
             {
                 Flush();
                 current = line[3..].Trim();
-                if (!RequiredSections.Contains(current, StringComparer.OrdinalIgnoreCase))
+                if (!RequiredSections.Contains(current, StringComparer.OrdinalIgnoreCase)
+                    && !string.Equals(current, ConsequenceSection, StringComparison.OrdinalIgnoreCase))
                     throw new ContentException(
-                        $"{sourceName}: unknown section '## {current}'. Allowed: what, risks, undo.");
+                        $"{sourceName}: unknown section '## {current}'. "
+                        + "Allowed: what, risks, undo, consequence.");
                 continue;
             }
 

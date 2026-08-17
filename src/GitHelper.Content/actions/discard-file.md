@@ -17,3 +17,7 @@ If you are unsure, commit first instead — you can always undo a commit.
 ## undo
 There is no undo. This is one of two actions in this app that can lose work for good,
 which is why it asks you twice.
+
+## consequence
+**This permanently deletes your unsaved edits to** {path}. They were never committed, so
+nothing can bring them back.

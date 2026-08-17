@@ -53,17 +53,22 @@
               Background="#20808080"
               BorderThickness="0,0,0,1" BorderBrush="#40808080"
               Padding="12,10">
-        <Grid ColumnDefinitions="*,Auto,Auto">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto">
           <StackPanel Spacing="2">
             <TextBlock Text="{Binding OperationBanner.Headline}" FontWeight="Bold" />
             <TextBlock Text="{Binding OperationBanner.Detail}"
                        Opacity="0.8" TextWrapping="Wrap" />
           </StackPanel>
-          <Button Grid.Column="1" Content="Finish the merge"
+          <Button Grid.Column="1" Content="{Binding OperationBanner.FinishLabel}"
                   Command="{Binding OperationBanner.FinishCommand}"
                   IsEnabled="{Binding OperationBanner.CanFinish}"
                   VerticalAlignment="Center" Margin="12,0,0,0" />
-          <Button Grid.Column="2" Content="Abandon the merge"
+          <!-- Rebase only: a merge has no per-commit sequence to skip within. -->
+          <Button Grid.Column="2" Name="SkipCommitButton" Content="Skip this commit"
+                  Command="{Binding OperationBanner.SkipCommand}"
+                  IsVisible="{Binding OperationBanner.CanSkip}"
+                  VerticalAlignment="Center" Margin="6,0,0,0" />
+          <Button Grid.Column="3" Content="{Binding OperationBanner.AbandonLabel}"
                   Command="{Binding OperationBanner.AbandonCommand}"
                   VerticalAlignment="Center" Margin="6,0,0,0" />
         </Grid>

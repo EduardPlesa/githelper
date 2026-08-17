@@ -113,6 +113,82 @@ public class OperationBannerViewModelTests
         Assert.Contains("another branch", banner.Headline);
     }
 
+    private static OperationState Rebasing(int step = 2, int total = 5, string? stoppedAt = "my work")
+        => new(OperationKind.Rebase, "main", new RebaseProgress(step, total, stoppedAt));
+
+    [Fact]
+    public void ARebaseSaysWhereItHasGotToAndWhichCommitStoppedIt()
+    {
+        var banner = NewBanner();
+
+        banner.Update(State(Rebasing(), Conflicted("a.txt")));
+
+        Assert.Contains("2 of 5", banner.Headline, StringComparison.Ordinal);
+        Assert.Contains("main", banner.Headline, StringComparison.Ordinal);
+        Assert.Contains("my work", banner.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ARebaseWithNoProgressStillExplainsItselfWithoutACounter()
+    {
+        var banner = NewBanner();
+
+        banner.Update(State(new OperationState(OperationKind.Rebase, "main"), Conflicted("a.txt")));
+
+        Assert.True(banner.IsVisible);
+        Assert.DoesNotContain(" of ", banner.Headline, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SkipIsOfferedForARebaseAndNotForAMerge()
+    {
+        var banner = NewBanner();
+
+        banner.Update(State(Rebasing(), Conflicted("a.txt")));
+        Assert.True(banner.CanSkip);
+
+        banner.Update(State(new OperationState(OperationKind.Merge, "feature"), Conflicted("a.txt")));
+        Assert.False(banner.CanSkip);
+    }
+
+    [Fact]
+    public void TheButtonsAreWordedForTheOperationInFlight()
+    {
+        var banner = NewBanner();
+
+        banner.Update(State(new OperationState(OperationKind.Merge, "feature")));
+        Assert.Equal("Finish the merge", banner.FinishLabel);
+        Assert.Equal("Abandon the merge", banner.AbandonLabel);
+
+        banner.Update(State(Rebasing()));
+        Assert.Equal("Continue", banner.FinishLabel);
+        Assert.Equal("Abandon the update", banner.AbandonLabel);
+    }
+
+    [Fact]
+    public async Task SkipExplainsItselfBeforeItRuns()
+    {
+        // rebase-skip is Destructive, so the band is not a shortcut past the modal.
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var runner = new GitRunner();
+        var reader = new RepoStateReader(runner);
+        var confirmations = new StubConfirmationDialog { NextAnswer = false };
+        var panel = new ExplainPanelViewModel(
+            new ActionService(runner, reader, ContentLibrary.Load()),
+            confirmations,
+            new InMemorySettingsStore());
+        var banner = new OperationBannerViewModel(panel);
+
+        banner.Update(await reader.ReadAsync(repo.Path));
+        await banner.SkipCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, confirmations.CallCount);
+        // Declining leaves the rebase exactly where it was.
+        Assert.NotNull((await reader.ReadAsync(repo.Path)).Operation);
+    }
+
     [Fact]
     public void GoesAwayAgainOnceTheMergeEnds()
     {

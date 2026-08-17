@@ -135,4 +135,52 @@ public class NarratorTests
 
         Assert.DoesNotContain("merge", narration, StringComparison.OrdinalIgnoreCase);
     }
+
+    private static OperationState Rebasing(int step = 1, int total = 3, string? stoppedAt = "my work")
+        => new(OperationKind.Rebase, "main", new RebaseProgress(step, total, stoppedAt));
+
+    [Fact]
+    public void Describe_ReportsARebaseThatStoppedAndNamesTheCommit()
+    {
+        var after = State(operation: Rebasing(), changes: Conflicted("a.txt"));
+
+        var narration = Narrator.Describe(State(), after);
+
+        Assert.Contains("stopped", narration, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("my work", narration, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Describe_ReportsMovingOnToTheNextCommitInTheSequence()
+    {
+        // An operation that was running and still is says nothing for a merge. For a rebase
+        // the step advancing is the whole observable event.
+        var before = State(operation: Rebasing(step: 1), changes: Conflicted("a.txt"));
+        var after = State(operation: Rebasing(step: 2), changes: Conflicted("b.txt"));
+
+        var narration = Narrator.Describe(before, after);
+
+        Assert.Contains("2 of 3", narration, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Describe_ReportsARebaseThatFinished()
+    {
+        var before = State(operation: Rebasing(), changes: Conflicted("a.txt"));
+        var after = State(commits: new[] { Commit("aaa", "my work") });
+
+        var narration = Narrator.Describe(before, after);
+
+        Assert.Contains("up to date", narration, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Describe_ReportsARebaseThatWasAbandoned()
+    {
+        var before = State(operation: Rebasing(), changes: Conflicted("a.txt"));
+
+        var narration = Narrator.Describe(before, State());
+
+        Assert.Contains("abandoned", narration, StringComparison.OrdinalIgnoreCase);
+    }
 }

@@ -27,30 +27,65 @@ public static class Narrator
     }
 
     /// <summary>
-    /// The only part of narration about something that did not finish. It speaks only about
-    /// operations starting and ending — an operation that was already running and still is
-    /// has nothing new to report, and the file counts speak for themselves in the band.
+    /// The only part of narration about something that did not finish. It speaks about
+    /// operations starting and ending, and — for a rebase only — about progressing from one
+    /// stopped commit to the next, which is the only feedback the user gets that the rebase
+    /// is moving. A merge that was already running and still is has nothing new to report;
+    /// the file counts speak for themselves in the band.
     /// </summary>
     private static void DescribeOperation(RepoState before, RepoState after, List<string> parts)
     {
         if (before.Operation is null && after.Operation is not null)
         {
-            var conflicts = after.Unmerged.Count;
-            parts.Add(
-                $"The merge stopped. {conflicts} file(s) have changes git could not "
-                + "combine on its own.");
+            parts.Add(DescribeStop(after));
             return;
         }
 
-        if (before.Operation is null || after.Operation is not null) return;
+        // Both running: for a merge there is nothing new to say, but a rebase moving to the
+        // next commit is the whole observable event.
+        if (before.Operation is not null && after.Operation is not null)
+        {
+            var was = before.Operation.Rebase;
+            var now = after.Operation.Rebase;
+
+            if (was is not null && now is not null && now.Step > was.Step)
+                parts.Add($"Moved on to commit {now.Step} of {now.Total}.");
+
+            return;
+        }
+
+        if (before.Operation is null) return;
 
         // Whether it finished or was called off is the difference between a commit having
         // appeared and not — which is observed, not assumed from which action ran.
         var committed = after.RecentCommits.Count > before.RecentCommits.Count;
 
-        parts.Add(committed
-            ? "The merge is finished."
-            : "The merge was abandoned. Your files are back as they were.");
+        parts.Add((before.Operation.Kind, committed) switch
+        {
+            (OperationKind.Rebase, true) => "Your branch is now up to date.",
+            (OperationKind.Rebase, false) =>
+                "The update was abandoned. Your branch is back as it was.",
+            (_, true) => "The merge is finished.",
+            (_, false) => "The merge was abandoned. Your files are back as they were.",
+        });
+    }
+
+    /// <summary>The sentence for an operation that has just started and immediately stopped.</summary>
+    private static string DescribeStop(RepoState after)
+    {
+        var conflicts = after.Unmerged.Count;
+
+        if (after.Operation!.Kind != OperationKind.Rebase)
+        {
+            return $"The merge stopped. {conflicts} file(s) have changes git could not "
+                   + "combine on its own.";
+        }
+
+        var stoppedAt = after.Operation.Rebase?.StoppedAtSubject;
+        var where = stoppedAt is null ? "one of your commits" : $"your commit \"{stoppedAt}\"";
+
+        return $"The update stopped on {where}. {conflicts} file(s) have changes git could "
+               + "not combine on its own.";
     }
 
     private static void DescribeCommits(RepoState before, RepoState after, List<string> parts)

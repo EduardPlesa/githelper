@@ -1,7 +1,7 @@
 # GitHelper — Roadmap
 
 **Status:** living document
-**Last updated:** 2026-08-11
+**Last updated:** 2026-08-17
 
 This records what GitHelper does *not* do yet, why, and in what order those gaps should close.
 It exists so the absences read as decisions rather than oversights — and so that a decision made
@@ -118,22 +118,27 @@ The entire flow assumes an action is **atomic**: preview → run → narrate →
 break that assumption. `git merge` can stop mid-operation and leave the repository in a state the
 user must drive to completion or abandon. `git rebase` can stop repeatedly.
 
-Today `RepoState` has no concept of this. It models conflicts at the **file** level
-(`ChangeKind.Unmerged`) but not at the **operation** level — there is no "a merge is in progress",
-no `MERGE_HEAD` or rebase-sequencer awareness.
+Before v2, `RepoState` had no concept of this. It modeled conflicts at the **file** level
+(`ChangeKind.Unmerged`) but not at the **operation** level — there was no "a merge is in
+progress", no `MERGE_HEAD` or rebase-sequencer awareness.
 
-Closing this requires:
+Closing that gap required:
 
-- **Operation state in `RepoState`** — is an operation in flight, which one, and how far through.
+- **Operation state in `RepoState`** — whether an operation is in flight, which one, and how far
+  through. Shipped as the nullable `OperationState` described above.
 - **A persistent UI band** — "you are in the middle of X: continue, or abort" — that survives
-  closing and reopening the app, because the repository state does.
-- **Actions that resume rather than start** (`--continue`, `--abort`, `--skip`), which do not fit
-  the current "an action is a thing you choose to do to a file or branch" shape.
+  closing and reopening the app, because the repository state does. Shipped, and read fresh on
+  every refresh rather than cached.
+- **Actions that resume rather than start** (`--continue`, `--abort`, `--skip`), which did not fit
+  the original "an action is a thing you choose to do to a file or branch" shape. Shipped as
+  ordinary `GitAction` descriptors — the misfit turned out to be about where the button lives,
+  not about the shape of an action.
 
-This is the load-bearing change. It is shared by merge, rebase, cherry-pick-with-conflicts, and
-guided conflict resolution. **Do it before anything that depends on it, even though easier work is
-available**, because it changes what "an action" means — and building UI against the old meaning
-means building it twice.
+This was the load-bearing change. It is shared by merge and rebase, both now shipped, and by
+cherry-pick-with-conflicts and guided conflict resolution, both still deferred. **Building it
+before anything that depended on it, ahead of easier work that was available**, was the right
+call: it changed what "an action" means, and building UI against the old meaning would have meant
+building it twice.
 
 ### Bucket 3 — Not actions at all
 

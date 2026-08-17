@@ -147,7 +147,7 @@ public class ContentParserTests
         var library = ContentLibrary.Load();
 
         var actionSpans = library.Actions.Values
-            .SelectMany(e => e.What.Concat(e.Risks).Concat(e.Undo));
+            .SelectMany(e => e.What.Concat(e.Risks).Concat(e.Undo).Concat(e.Consequence));
         var termSpans = library.Terms.Values.SelectMany(t => t.Definition);
 
         var offenders = actionSpans.Concat(termSpans)
@@ -155,6 +155,30 @@ public class ContentParserTests
             .SelectMany(p => p.Spans)
             .OfType<TextSpan>()
             .Where(s => s.Text.Contains('*'))
+            .Select(s => s.Text)
+            .ToList();
+
+        Assert.Empty(offenders);
+    }
+
+    [Fact]
+    public void ShippedContent_NeverHidesASlotInsideBoldText()
+    {
+        // StrongSpan.Text is a plain string, not a further-parsed list of spans: the inline
+        // regex captures everything between a pair of ** markers as one literal run, so a
+        // {slot} written inside bold is never split out into its own SlotSpan. SlotResolver
+        // only walks the top-level span list, so that {slot} would never be resolved -- it
+        // would ship to a beginner as the raw text "{path}" instead of the real value. This
+        // bit discard-file's consequence sentence once; if you hit this failure, move the
+        // slot outside the ** markers rather than inside them.
+        var library = ContentLibrary.Load();
+
+        var offenders = library.Actions.Values
+            .SelectMany(e => e.What.Concat(e.Risks).Concat(e.Undo).Concat(e.Consequence))
+            .OfType<ParagraphBlock>()
+            .SelectMany(p => p.Spans)
+            .OfType<StrongSpan>()
+            .Where(s => s.Text.Contains('{') || s.Text.Contains('}'))
             .Select(s => s.Text)
             .ToList();
 

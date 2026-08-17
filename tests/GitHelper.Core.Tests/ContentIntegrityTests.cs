@@ -15,7 +15,8 @@ public class ContentIntegrityTests
         => Library.Actions.Values.Concat(Library.Setup.Values);
 
     private static IEnumerable<InlineSpan> AllSpans(ExplanationDocument document)
-        => Spans(document.What).Concat(Spans(document.Risks)).Concat(Spans(document.Undo));
+        => Spans(document.What).Concat(Spans(document.Risks)).Concat(Spans(document.Undo))
+            .Concat(Spans(document.Consequence));
 
     private static IEnumerable<InlineSpan> Spans(IEnumerable<ContentBlock> blocks)
     {

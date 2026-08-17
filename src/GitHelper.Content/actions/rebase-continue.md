@@ -11,7 +11,9 @@ one, the [[rebase|update]] is complete and your branch now starts from {rebasing
 ## risks
 This is only available once every [[conflict|conflict]] has been marked fixed, so the risk is
 not that it fails — it is that a file was marked fixed too early. What goes into the remade
-[[commit|commit]] is exactly what is on disk right now.
+[[commit|commit]] is whatever was marked fixed, not necessarily what is on disk right now. If
+you edit a file again after marking it fixed, mark it fixed again before carrying on, or that
+later edit is left out.
 
 There may be more stops after this one. The banner says how many commits are left.
 

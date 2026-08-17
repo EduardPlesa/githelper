@@ -24,7 +24,7 @@ public class ActionCatalogTests
     }
 
     [Fact]
-    public void All_ContainsExactlyTheTwentyFiveActions()
+    public void All_ContainsExactlyTheTwentyNineActions()
     {
         var expected = new[]
         {
@@ -34,6 +34,7 @@ public class ActionCatalogTests
             "connect-remote", "disconnect-remote",
             "create-tag", "delete-tag",
             "stash", "stash-pop", "stash-apply", "stash-drop",
+            "rebase", "rebase-continue", "rebase-skip", "rebase-abort",
             "merge", "mark-resolved", "merge-continue", "merge-abort",
         };
 
@@ -143,12 +144,122 @@ public class ActionCatalogTests
     }
 
     [Fact]
-    public void DiscardFileAndStashDrop_AreTheOnlyDestructiveActions()
+    public void Rebase_BuildsRebaseOntoTheGivenBase()
+    {
+        var args = ActionCatalog.Find("rebase")!
+            .BuildArgs(MinimalState(), new ActionRequest("rebase", BranchName: "main"));
+
+        Assert.Equal(new[] { "rebase", "main" }, args);
+    }
+
+    [Fact]
+    public void RebaseContinue_BuildsRebaseContinue()
+    {
+        var args = ActionCatalog.Find("rebase-continue")!
+            .BuildArgs(MinimalState(), new ActionRequest("rebase-continue"));
+
+        Assert.Equal(new[] { "rebase", "--continue" }, args);
+    }
+
+    [Fact]
+    public void RebaseSkip_BuildsRebaseSkip()
+    {
+        var args = ActionCatalog.Find("rebase-skip")!
+            .BuildArgs(MinimalState(), new ActionRequest("rebase-skip"));
+
+        Assert.Equal(new[] { "rebase", "--skip" }, args);
+    }
+
+    [Fact]
+    public void RebaseAbort_BuildsRebaseAbort()
+    {
+        var args = ActionCatalog.Find("rebase-abort")!
+            .BuildArgs(MinimalState(), new ActionRequest("rebase-abort"));
+
+        Assert.Equal(new[] { "rebase", "--abort" }, args);
+    }
+
+    [Fact]
+    public void Rebase_IsRefusedOnceTheBranchIsOnTheServer()
+    {
+        var pushed = MinimalState() with { Upstream = "origin/feature" };
+        var request = new ActionRequest("rebase", BranchName: "main");
+
+        Assert.Contains(
+            ActionCatalog.Find("rebase")!.Preconditions.Select(p => p.Evaluate(pushed, request)),
+            r => !r.Satisfied);
+    }
+
+    [Fact]
+    public void MarkResolved_WorksDuringARebaseAndNotOnlyAMerge()
+    {
+        // Without this the user is left holding conflicted files in a rebase with no way to
+        // mark them fixed and therefore no way to carry on.
+        var rebasing = MinimalState() with
+        {
+            Operation = new OperationState(OperationKind.Rebase, "main"),
+        };
+        var request = new ActionRequest("mark-resolved", Path: "conflict.txt");
+
+        Assert.All(
+            ActionCatalog.Find("mark-resolved")!.Preconditions.Select(p => p.Evaluate(rebasing, request)),
+            r => Assert.True(r.Satisfied, r.Message));
+    }
+
+    [Fact]
+    public async Task Rebase_Stops_ThenResolves_ThenContinues_AgainstARealRepository()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var stopped = await Reader.ReadAsync(repo.Path);
+        Assert.Equal(OperationKind.Rebase, stopped.Operation!.Kind);
+        Assert.Single(stopped.Unmerged);
+
+        repo.WriteFile("conflict.txt", "reconciled by hand\n");
+        await RunActionAsync(repo, new ActionRequest("mark-resolved", Path: "conflict.txt"));
+
+        var finished = await RunActionAsync(repo, new ActionRequest("rebase-continue"));
+
+        Assert.Null(finished.Operation);
+        Assert.Contains(finished.RecentCommits, c => c.Subject == "my work");
+        Assert.Contains(finished.RecentCommits, c => c.Subject == "their work");
+    }
+
+    [Fact]
+    public async Task RebaseSkip_DropsTheCommitAgainstARealRepository()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var after = await RunActionAsync(repo, new ActionRequest("rebase-skip"));
+
+        Assert.Null(after.Operation);
+        // The commit being replayed was skipped, so it is not in the branch any more.
+        Assert.DoesNotContain(after.RecentCommits, c => c.Subject == "my work");
+        Assert.Contains(after.RecentCommits, c => c.Subject == "their work");
+    }
+
+    [Fact]
+    public async Task RebaseAbort_PutsTheBranchBackAgainstARealRepository()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var after = await RunActionAsync(repo, new ActionRequest("rebase-abort"));
+
+        Assert.Null(after.Operation);
+        Assert.Contains(after.RecentCommits, c => c.Subject == "my work");
+        Assert.DoesNotContain(after.RecentCommits, c => c.Subject == "their work");
+    }
+
+    [Fact]
+    public void TheThreeDestructiveActionsAreTheOnesThatLoseWork()
     {
         var destructive = ActionCatalog.All.Where(a => a.Danger == Danger.Destructive).Select(a => a.Id);
 
         Assert.Equal(
-            new[] { "discard-file", "stash-drop" }.OrderBy(x => x),
+            new[] { "discard-file", "stash-drop", "rebase-skip" }.OrderBy(x => x),
             destructive.OrderBy(x => x));
     }
 

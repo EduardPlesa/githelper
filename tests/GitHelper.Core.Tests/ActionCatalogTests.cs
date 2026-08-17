@@ -180,14 +180,32 @@ public class ActionCatalogTests
     }
 
     [Fact]
+    public void Rebase_AllPreconditionsPassWithoutAnUpstream()
+    {
+        // Positive control for Rebase_IsRefusedOnceTheBranchIsOnTheServer: BranchName differs
+        // from MinimalState()'s Branch ("main"), so RequiresNotCurrentBranch cannot be the one
+        // doing the refusing in that test. This proves every other precondition on rebase is
+        // already satisfied by MinimalState() plus a non-colliding branch name, so the only
+        // thing left that can fail once Upstream is set is RequiresNoUpstream itself.
+        var request = new ActionRequest("rebase", BranchName: "feature");
+
+        Assert.All(
+            ActionCatalog.Find("rebase")!.Preconditions.Select(p => p.Evaluate(MinimalState(), request)),
+            r => Assert.True(r.Satisfied, r.Message));
+    }
+
+    [Fact]
     public void Rebase_IsRefusedOnceTheBranchIsOnTheServer()
     {
         var pushed = MinimalState() with { Upstream = "origin/feature" };
-        var request = new ActionRequest("rebase", BranchName: "main");
+        var request = new ActionRequest("rebase", BranchName: "feature");
 
-        Assert.Contains(
-            ActionCatalog.Find("rebase")!.Preconditions.Select(p => p.Evaluate(pushed, request)),
-            r => !r.Satisfied);
+        var failed = ActionCatalog.Find("rebase")!.Preconditions
+            .Where(p => !p.Evaluate(pushed, request).Satisfied)
+            .ToList();
+
+        var failure = Assert.Single(failed);
+        Assert.IsType<RequiresNoUpstream>(failure);
     }
 
     [Fact]

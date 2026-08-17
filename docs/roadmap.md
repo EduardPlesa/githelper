@@ -77,7 +77,7 @@ proved it was in, and leaves the stash in place.
 
 ### Bucket 2 — The one real architectural gap
 
-**~~Merge~~ (shipped) and rebase.**
+**~~Merge and rebase~~ (both shipped).**
 
 **Operation state and merge shipped ahead of v1.1**, on the reasoning below: it changes what
 "an action" means, so building anything else against the old meaning means building it twice.
@@ -102,9 +102,17 @@ Two things this section did not anticipate:
   Commit button would have ended a merge with a message written for something else. `commit`
   now carries `RequiresNoOperationInProgress`.
 
-**Rebase** still stands, and reuses all of the above. It adds the sequencer — stopping
-repeatedly, `--skip`, and step-of-total progress — plus the first genuinely history-rewriting
-action in the app.
+**Rebase shipped narrow**, and reused all of the above exactly as predicted: operation state,
+the band, `Paused`, and resume actions as ordinary descriptors. What it added was the
+sequencer — repeated stops, `--skip`, and step-of-total progress read from git's own sequencer
+files, the first time this app reads them rather than asking git a question.
+
+Two things it did not do. It does not rebase a branch that is already on a server: that needs
+a force-push this app does not have, and offering it would strand the user behind a push
+refusal whose translation would actively mislead them. And it did **not** force the `Danger`
+enum open. Three levels still describe the gate correctly; what needed generalising was the
+modal's consequence sentence, which was hardcoded as a switch in a viewmodel and now lives in
+the content files beside every other word the user reads.
 
 The entire flow assumes an action is **atomic**: preview → run → narrate → done. Merge and rebase
 break that assumption. `git merge` can stop mid-operation and leave the repository in a state the
@@ -180,7 +188,7 @@ them, and a beginner who genuinely needs submodules needs a colleague, not a GUI
 |---|---|---|
 | **v1.1** | ~~Remote management, tags, stash~~ (all shipped) | No new concepts; proved the descriptor model scales past the original thirteen |
 | **v2** | ~~Operation state, then merge~~ (shipped) | The load-bearing change everything below depends on |
-| **v2.1** | Rebase | Rides on v2's operation state; adds the sequencer and history rewriting |
+| **v2.1** | ~~Rebase~~ (shipped) | Rode on v2's operation state; added the sequencer and history rewriting |
 | **v2.5** | Diff viewer | Independent of the above, and a prerequisite for v3 |
 | **v3** | Guided conflict resolution | Sits on v2 + v2.5 |
 
@@ -197,13 +205,17 @@ plan predates the `RepoState` shape v2 left behind and needs rewriting against i
 Two parts of the design were expected to come under pressure at v2. Merge has now been built,
 so both can be reported on rather than predicted.
 
-**The `Danger` enum is three-valued, and `discard-file` is still the only `Destructive`
-action.** Merge did not force this after all. `merge-abort` is the closest call in the app —
-it destroys hand-resolved conflict work unrecoverably — and it is `Caution`, on the grounds
-that the modal's consequence sentence is hardcoded for `discard-file` and generalising it for
-one action would be guessing at a shape not yet visible. **This is deferred, not resolved.**
-Rebase, and force-push if it is ever added, will force it, and that is the moment the
-three-value model gets questioned.
+**The `Danger` enum is three-valued, and it survived rebase.** `discard-file`, `stash-drop`
+and `rebase-skip` are now all `Destructive`, and the enum did not need a fourth level: what
+had to change was where the modal's consequence sentence lives, not how danger is described.
+The prediction was right that something would give at rebase, and wrong about what.
+
+`merge-abort` is the closest call in the app —
+it destroys hand-resolved conflict work unrecoverably — and it is still `Caution`, on the
+grounds that promoting it without a reason drawn from an actual incident would be guessing at
+a shape not yet visible, the same restraint this document has kept from the start. **This is
+deferred, not resolved.** Force-push, if it is ever added, is the next thing that could force
+the question; rebase, which this document expected to, did not.
 
 **Narration snapshots repository state before and after, then describes the observed
 difference.** This survived intact. `Narrator` gained three sentences for operations starting

@@ -195,6 +195,46 @@ public sealed class RequiresMergeInProgress : IPrecondition
             : PreconditionResult.Fail("There is no merge under way, so there is nothing to finish.");
 }
 
+public sealed class RequiresRebaseInProgress : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+        => state.Operation?.Kind == OperationKind.Rebase
+            ? PreconditionResult.Ok
+            : PreconditionResult.Fail(
+                "There is no update under way, so there is nothing to carry on with.");
+}
+
+/// <summary>
+/// Satisfied by any operation, of any kind. Fixing a conflict is the same act whether it
+/// came from a merge or a rebase, so mark-resolved uses this rather than either specific one.
+/// </summary>
+public sealed class RequiresOperationInProgress : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+        => state.Operation is not null
+            ? PreconditionResult.Ok
+            : PreconditionResult.Fail(
+                "Nothing is part-way through, so there is no conflict to mark as fixed.");
+}
+
+/// <summary>
+/// Refuses anything that would rewrite commits already on a server. This app has no
+/// force-push, so the rewritten branch could never be sent again — and the push refusal the
+/// user would eventually hit says "the server has work you do not have yet", which would send
+/// them to pull and make it worse. Refusing here, with the reason, is the honest version.
+/// </summary>
+public sealed class RequiresNoUpstream : IPrecondition
+{
+    public PreconditionResult Evaluate(RepoState state, ActionRequest request)
+        => state.Upstream is null
+            ? PreconditionResult.Ok
+            : PreconditionResult.Fail(
+                "This branch is already on the server. Updating it this way rewrites commits "
+                + "that have been sent, which would need a force-push — something this app "
+                + "deliberately does not do. Bring the other branch's work in instead.",
+                "merge");
+}
+
 /// <summary>
 /// Guards anything that must not run while git has an operation half-done. Most such
 /// commands git refuses by itself; this exists for the ones that would quietly succeed.

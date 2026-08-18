@@ -433,4 +433,44 @@ public class ActionServiceTests
         Assert.DoesNotContain(
             "stash", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    /// Pins the bug a count-based finished/abandoned test had: RecentCommits is HEAD's log,
+    /// and a rebase detaches HEAD onto the base while it runs. Aborting restores the branch
+    /// (4 commits) over a mid-rebase HEAD sitting on main (3 commits) — a bigger count, which
+    /// the old comparison read as "finished" even though the update was just thrown away.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_NarratesAnAbortedRebaseAsAbandonedNotFinished()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartTwiceConflictingRebaseAsync();
+
+        var outcome = await NewService().RunAsync(repo.Path, new ActionRequest("rebase-abort"));
+
+        Assert.True(outcome.Success);
+        Assert.NotNull(outcome.Narration);
+        Assert.Contains("abandoned", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("up to date", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The mirror bug: a `rebase --skip` that discards the only conflicting commit completes
+    /// the rebase by landing back exactly on the base it started mid-rebase on — the same
+    /// commit count as before, which the old comparison read as "nothing happened" and
+    /// narrated as abandonment of a Destructive action that just destroyed a commit.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_NarratesASkipThatCompletesTheRebaseAsFinishedNotAbandoned()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var outcome = await NewService().RunAsync(repo.Path, new ActionRequest("rebase-skip"));
+
+        Assert.True(outcome.Success);
+        Assert.NotNull(outcome.Narration);
+        Assert.Contains("up to date", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("abandoned", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+    }
 }

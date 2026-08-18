@@ -114,6 +114,24 @@ public class NarratorTests
         Assert.Contains("merge is finished", narration, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// "The merge is finished." is deliberately terse — the design relies on the commit
+    /// sentence to carry the hash and subject. A merge is still in flight in `before` (that
+    /// is what makes `merge --continue` a merge finishing at all), so a gate that suppressed
+    /// the commit list whenever either side had any operation would suppress this sentence
+    /// along with it. It must survive narrowing that gate to rebase only.
+    /// </summary>
+    [Fact]
+    public void Describe_ReportsAFinishedMergesCommitAlongsideItsOwnSentence()
+    {
+        var before = State(operation: Merging(), changes: Conflicted("a.txt"));
+        var after = State(commits: new[] { Commit("aaa", "Merge branch 'feature'") });
+
+        var narration = Narrator.Describe(before, after);
+
+        Assert.Contains("Created commit aaa", narration, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Describe_ReportsAMergeThatWasAbandoned()
     {

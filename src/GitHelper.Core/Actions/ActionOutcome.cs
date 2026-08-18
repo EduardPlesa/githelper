@@ -61,8 +61,13 @@ public sealed record ActionOutcome(
     }
 
     /// <summary>
-    /// Whether the tip commit changed. Read as a second, independent signal to the sequencer
-    /// counter, whose files are not documented git API and can come back unreadable.
+    /// Whether the tip commit changed. Read as a second, independent signal alongside the
+    /// sequencer counter, but only for the case where a commit actually gets produced: a
+    /// `rebase --continue` that successfully replays a commit still moves HEAD even if the
+    /// msgnum file comes back unreadable at that instant. It does not generalize to an
+    /// unreadable msgnum in general — `rebase --skip` commits nothing, so HEAD does not move
+    /// there either, and a skip with an unreadable msgnum has no fallback and rides entirely
+    /// on the sequencer file.
     /// </summary>
     private static bool HeadMoved(RepoState before, RepoState after)
         => !string.Equals(

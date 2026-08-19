@@ -15,5 +15,9 @@ so git has no copy of them anywhere. Nothing in this app or in git can bring the
 If you are unsure, commit first instead — you can always undo a commit.
 
 ## undo
-There is no undo. This is one of two actions in this app that can lose work for good,
-which is why it asks you twice.
+There is no undo. This app has very few ways to lose work for good, and this is one of
+them — which is why it asks you twice.
+
+## consequence
+**This permanently deletes your unsaved edits to** {path}. They were never committed, so
+nothing can bring them back.

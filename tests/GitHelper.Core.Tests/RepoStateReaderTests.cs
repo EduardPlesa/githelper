@@ -205,4 +205,100 @@ public class RepoStateReaderTests
 
         Assert.Null(state.Operation);
     }
+
+    [Fact]
+    public async Task ReadAsync_ReportsARebaseThatStoppedOnConflicts()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.NotNull(state.Operation);
+        Assert.Equal(OperationKind.Rebase, state.Operation!.Kind);
+    }
+
+    [Fact]
+    public async Task ReadAsync_NamesTheBaseTheBranchIsBeingReplayedOnto()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.Equal("main", state.Operation!.IncomingLabel);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReadsHowFarThroughTheSequenceTheRebaseIs()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.NotNull(state.Operation!.Rebase);
+        Assert.Equal(1, state.Operation.Rebase!.Step);
+        Assert.Equal(1, state.Operation.Rebase.Total);
+    }
+
+    [Fact]
+    public async Task ReadAsync_NamesTheCommitTheRebaseStoppedOn()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.Equal("my work", state.Operation!.Rebase!.StoppedAtSubject);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReportsNoOperationOnceTheRebaseIsAbandoned()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        await repo.GitAsync("rebase", "--abort");
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.Null(state.Operation);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReportsTheRebaseWithoutProgressWhenTheSequencerFilesAreGone()
+    {
+        // msgnum and end are not documented API. Losing them must cost the counter, not
+        // the knowledge that a rebase is under way.
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+        File.Delete(Path.Combine(repo.Path, ".git", "rebase-merge", "msgnum"));
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.NotNull(state.Operation);
+        Assert.Equal(OperationKind.Rebase, state.Operation!.Kind);
+        Assert.Null(state.Operation.Rebase);
+    }
+
+    /// <summary>
+    /// Narrator's rebase narration leans on OrigHead being the real pre-rebase branch tip —
+    /// so this checks it against a value read independently of the sequencer file the reader
+    /// itself parses. Git also points its own <c>ORIG_HEAD</c> ref at the same commit when a
+    /// rebase starts, which is a second, independent source for the same fact.
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_ReadsOrigHeadFromAPausedRebase()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var origHeadRef = await repo.GitAsync("rev-parse", "ORIG_HEAD");
+        var expected = origHeadRef.StdOut.Trim();
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.NotNull(state.Operation!.Rebase);
+        Assert.Equal(expected, state.Operation.Rebase!.OrigHead);
+    }
 }

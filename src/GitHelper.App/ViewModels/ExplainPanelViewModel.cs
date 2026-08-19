@@ -37,7 +37,7 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
 
     private string? _repoPath;
     private ActionRequest? _request;
-    private IReadOnlyDictionary<string, string> _slots = new Dictionary<string, string>();
+    private IReadOnlyList<ContentBlock> _consequence = NoBlocks;
 
     private string? _folderPath;
     private SetupRequest? _setupRequest;
@@ -174,7 +174,6 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
 
         _repoPath = repoPath;
         _request = request;
-        _slots = preview.Slots;
 
         Title = preview.Action.Title;
         CommandLine = preview.CommandLine;
@@ -185,6 +184,8 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
         WhatBlocks = GitHelper.App.Content.SlotResolver.Resolve(preview.Explanation.What, preview.Slots);
         RisksBlocks = GitHelper.App.Content.SlotResolver.Resolve(preview.Explanation.Risks, preview.Slots);
         UndoBlocks = GitHelper.App.Content.SlotResolver.Resolve(preview.Explanation.Undo, preview.Slots);
+        _consequence = GitHelper.App.Content.SlotResolver.Resolve(
+            preview.Explanation.Consequence, preview.Slots);
         Blockers = preview.Blockers
             .Select(b => b.Message ?? "This cannot run right now.")
             .ToArray();
@@ -271,7 +272,7 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
         // Arming the setup path disarms the action path, so the two can never both fire.
         _repoPath = null;
         _request = null;
-        _slots = new Dictionary<string, string>();
+        _consequence = NoBlocks;
 
         _folderPath = folderPath;
         _setupRequest = request;
@@ -369,7 +370,7 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
     {
         _repoPath = null;
         _request = null;
-        _slots = new Dictionary<string, string>();
+        _consequence = NoBlocks;
 
         _folderPath = null;
         _setupRequest = null;
@@ -401,20 +402,43 @@ public sealed partial class ExplainPanelViewModel : ViewModelBase
         _ => !_settings.Load().SuppressedExplanations.Contains(actionId),
     };
 
-    /// <summary>The consequence sentence shown in the destructive modal, with real values.</summary>
-    private string BuildConsequence() => _request?.ActionId switch
+    /// <summary>
+    /// The consequence sentence shown in the destructive modal, taken from the action's own
+    /// content file with its slots already filled.
+    ///
+    /// This used to be a switch on action id here, which meant every new destructive action
+    /// silently inherited discard-file's wording until someone remembered to add a case.
+    /// ContentIntegrityTests now requires the section, so the fallback below is unreachable
+    /// in a shipped build and exists only so a modal can never be blank.
+    /// </summary>
+    private string BuildConsequence()
     {
-        "stash-drop" => "This permanently deletes this set of stashed changes. "
-                         + "Once dropped, git cannot bring it back.",
-        _ => BuildDiscardFileConsequence(),
-    };
+        var sentence = string.Join(
+            " ",
+            _consequence.OfType<ParagraphBlock>()
+                .Select(p => string.Concat(p.Spans.Select(Flatten)).Trim())
+                .Where(text => text.Length > 0));
 
-    private string BuildDiscardFileConsequence()
-    {
-        var path = _slots.TryGetValue("path", out var p) ? p : "this file";
-        return $"This permanently deletes your unsaved edits to {path}. "
-               + "They were never committed, so nothing can bring them back.";
+        return sentence.Length > 0
+            ? sentence
+            : "This cannot be undone.";
     }
+
+    /// <summary>
+    /// The modal takes a plain string, so every span kind has to contribute its text. Bold
+    /// especially: StrongSpan exists chiefly for this sentence, so dropping it would delete
+    /// the very words the modal is there to make unmissable. Slots are already TextSpan by
+    /// the time this runs, SlotResolver having replaced them.
+    /// </summary>
+    private static string Flatten(InlineSpan span) => span switch
+    {
+        TextSpan text => text.Text,
+        StrongSpan strong => strong.Text,
+        CodeSpan code => code.Text,
+        TermSpan term => term.Display,
+        SlotSpan slot => slot.SlotName,
+        _ => string.Empty,
+    };
 
     partial void OnCanRunChanged(bool value)
     {

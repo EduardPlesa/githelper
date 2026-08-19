@@ -15,3 +15,7 @@ this app.
 
 ## undo
 There is no undo. Bring the changes back first if there is any chance you still want them.
+
+## consequence
+**This permanently deletes this set of stashed changes.** Once dropped, git cannot bring it
+back.

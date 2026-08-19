@@ -1,7 +1,7 @@
 # GitHelper — Roadmap
 
 **Status:** living document
-**Last updated:** 2026-08-11
+**Last updated:** 2026-08-17
 
 This records what GitHelper does *not* do yet, why, and in what order those gaps should close.
 It exists so the absences read as decisions rather than oversights — and so that a decision made
@@ -77,7 +77,7 @@ proved it was in, and leaves the stash in place.
 
 ### Bucket 2 — The one real architectural gap
 
-**~~Merge~~ (shipped) and rebase.**
+**~~Merge and rebase~~ (both shipped).**
 
 **Operation state and merge shipped ahead of v1.1**, on the reasoning below: it changes what
 "an action" means, so building anything else against the old meaning means building it twice.
@@ -102,30 +102,43 @@ Two things this section did not anticipate:
   Commit button would have ended a merge with a message written for something else. `commit`
   now carries `RequiresNoOperationInProgress`.
 
-**Rebase** still stands, and reuses all of the above. It adds the sequencer — stopping
-repeatedly, `--skip`, and step-of-total progress — plus the first genuinely history-rewriting
-action in the app.
+**Rebase shipped narrow**, and reused all of the above exactly as predicted: operation state,
+the band, `Paused`, and resume actions as ordinary descriptors. What it added was the
+sequencer — repeated stops, `--skip`, and step-of-total progress read from git's own sequencer
+files, the first time this app reads them rather than asking git a question.
+
+Two things it did not do. It does not rebase a branch that is already on a server: that needs
+a force-push this app does not have, and offering it would strand the user behind a push
+refusal whose translation would actively mislead them. And it did **not** force the `Danger`
+enum open. Three levels still describe the gate correctly; what needed generalising was the
+modal's consequence sentence, which was hardcoded as a switch in a viewmodel and now lives in
+the content files beside every other word the user reads.
 
 The entire flow assumes an action is **atomic**: preview → run → narrate → done. Merge and rebase
 break that assumption. `git merge` can stop mid-operation and leave the repository in a state the
 user must drive to completion or abandon. `git rebase` can stop repeatedly.
 
-Today `RepoState` has no concept of this. It models conflicts at the **file** level
-(`ChangeKind.Unmerged`) but not at the **operation** level — there is no "a merge is in progress",
-no `MERGE_HEAD` or rebase-sequencer awareness.
+Before v2, `RepoState` had no concept of this. It modeled conflicts at the **file** level
+(`ChangeKind.Unmerged`) but not at the **operation** level — there was no "a merge is in
+progress", no `MERGE_HEAD` or rebase-sequencer awareness.
 
-Closing this requires:
+Closing that gap required:
 
-- **Operation state in `RepoState`** — is an operation in flight, which one, and how far through.
+- **Operation state in `RepoState`** — whether an operation is in flight, which one, and how far
+  through. Shipped as the nullable `OperationState` described above.
 - **A persistent UI band** — "you are in the middle of X: continue, or abort" — that survives
-  closing and reopening the app, because the repository state does.
-- **Actions that resume rather than start** (`--continue`, `--abort`, `--skip`), which do not fit
-  the current "an action is a thing you choose to do to a file or branch" shape.
+  closing and reopening the app, because the repository state does. Shipped, and read fresh on
+  every refresh rather than cached.
+- **Actions that resume rather than start** (`--continue`, `--abort`, `--skip`), which did not fit
+  the original "an action is a thing you choose to do to a file or branch" shape. Shipped as
+  ordinary `GitAction` descriptors — the misfit turned out to be about where the button lives,
+  not about the shape of an action.
 
-This is the load-bearing change. It is shared by merge, rebase, cherry-pick-with-conflicts, and
-guided conflict resolution. **Do it before anything that depends on it, even though easier work is
-available**, because it changes what "an action" means — and building UI against the old meaning
-means building it twice.
+This was the load-bearing change. It is shared by merge and rebase, both now shipped, and by
+cherry-pick-with-conflicts and guided conflict resolution, both still deferred. **Building it
+before anything that depended on it, ahead of easier work that was available**, was the right
+call: it changed what "an action" means, and building UI against the old meaning would have meant
+building it twice.
 
 ### Bucket 3 — Not actions at all
 
@@ -180,7 +193,7 @@ them, and a beginner who genuinely needs submodules needs a colleague, not a GUI
 |---|---|---|
 | **v1.1** | ~~Remote management, tags, stash~~ (all shipped) | No new concepts; proved the descriptor model scales past the original thirteen |
 | **v2** | ~~Operation state, then merge~~ (shipped) | The load-bearing change everything below depends on |
-| **v2.1** | Rebase | Rides on v2's operation state; adds the sequencer and history rewriting |
+| **v2.1** | ~~Rebase~~ (shipped) | Rode on v2's operation state; added the sequencer and history rewriting |
 | **v2.5** | Diff viewer | Independent of the above, and a prerequisite for v3 |
 | **v3** | Guided conflict resolution | Sits on v2 + v2.5 |
 
@@ -197,24 +210,40 @@ plan predates the `RepoState` shape v2 left behind and needs rewriting against i
 Two parts of the design were expected to come under pressure at v2. Merge has now been built,
 so both can be reported on rather than predicted.
 
-**The `Danger` enum is three-valued, and `discard-file` is still the only `Destructive`
-action.** Merge did not force this after all. `merge-abort` is the closest call in the app —
-it destroys hand-resolved conflict work unrecoverably — and it is `Caution`, on the grounds
-that the modal's consequence sentence is hardcoded for `discard-file` and generalising it for
-one action would be guessing at a shape not yet visible. **This is deferred, not resolved.**
-Rebase, and force-push if it is ever added, will force it, and that is the moment the
-three-value model gets questioned.
+**The `Danger` enum is three-valued, and it survived rebase.** `discard-file`, `stash-drop`
+and `rebase-skip` are now all `Destructive`, and the enum did not need a fourth level: what
+had to change was where the modal's consequence sentence lives, not how danger is described.
+The prediction was right that something would give at rebase, and wrong about what.
+
+`merge-abort` is the closest call in the app —
+it destroys hand-resolved conflict work unrecoverably — and it is still `Caution`, on the
+grounds that promoting it without a reason drawn from an actual incident would be guessing at
+a shape not yet visible, the same restraint this document has kept from the start. **This is
+deferred, not resolved.** Force-push, if it is ever added, is the next thing that could force
+the question; rebase, which this document expected to, did not.
 
 **Narration snapshots repository state before and after, then describes the observed
 difference.** This survived intact. `Narrator` gained three sentences for operations starting
-and ending, and which one applies is decided by whether a commit appeared — observed, not
-inferred from which action ran. The worry that partial completion had no vocabulary turned out
-to be a vocabulary problem rather than a structural one.
+and ending — rebase later took that to seven — and which one applies is decided by whether a
+commit appeared, observed, not inferred from which action ran. The worry that partial
+completion had no vocabulary turned out to be a vocabulary problem rather than a structural
+one.
 
-One strain point that was **not** anticipated, and is worth carrying into rebase: `Success` on
+One strain point was **not** anticipated at merge, and rebase duly broke on it: `Success` on
 `ActionOutcome` means the exit code, and an operation that pauses exits non-zero. `Paused`
-patches this for merge. Rebase pauses repeatedly, so the question of what `Success` means for a
-multi-step operation will get sharper, not softer.
+patched this for merge by defining a pause as the *transition* into an operation — which is
+indistinguishable from the right answer as long as the operation only ever stops once. A
+rebase stops repeatedly, and `rebase --continue` that stops on the next commit's conflict
+exits non-zero with the sequencer still in place, so under that definition it was not paused
+and the user who had just fixed a conflict was shown an error for a command that did exactly
+what was asked.
+
+The resolution kept the discipline rather than reaching for the action id: a pause is now an
+operation still in flight **after** the command, and — when one was already in flight — the
+operation having visibly *moved*, by the sequencer counter or by HEAD. Both halves are
+observed state. The second half is what stops an unrelated command that fails mid-operation
+from having its real error swallowed. `Success` still means the exit code and nothing else;
+what changed is the question asked alongside it.
 
 ---
 

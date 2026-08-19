@@ -237,7 +237,7 @@ public static class ActionCatalog
             BuildArgs: (_, r) => new[] { "add", "--", r.Path! },
             Preconditions: new IPrecondition[]
             {
-                new RequiresPath(), new RequiresMergeInProgress(),
+                new RequiresPath(), new RequiresOperationInProgress(),
             }),
 
         new GitAction(
@@ -256,6 +256,46 @@ public static class ActionCatalog
             Danger: Danger.Caution,
             BuildArgs: (_, _) => new[] { "merge", "--abort" },
             Preconditions: new IPrecondition[] { new RequiresMergeInProgress() }),
+
+        new GitAction(
+            Id: "rebase",
+            Title: "Bring this branch up to date",
+            Danger: Danger.Caution,
+            BuildArgs: (_, r) => new[] { "rebase", r.BranchName! },
+            // RequiresNoUpstream is the load-bearing one: rewriting commits already on a
+            // server would need a force-push this app does not have.
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresBranchName(), new RequiresNotCurrentBranch(), new RequiresCommits(),
+                new RequiresNoUncommittedChanges(), new RequiresNoOperationInProgress(),
+                new RequiresNoUpstream(),
+            }),
+
+        new GitAction(
+            Id: "rebase-continue",
+            Title: "Carry on with the update",
+            Danger: Danger.Caution,
+            BuildArgs: (_, _) => new[] { "rebase", "--continue" },
+            Preconditions: new IPrecondition[]
+            {
+                new RequiresRebaseInProgress(), new RequiresNoUnmergedFiles(),
+            }),
+
+        new GitAction(
+            Id: "rebase-skip",
+            Title: "Skip this commit",
+            Danger: Danger.Destructive,
+            // The only action that discards a commit the user wrote. The reflog still has it;
+            // this app offers no way back, and the content says so rather than implying one.
+            BuildArgs: (_, _) => new[] { "rebase", "--skip" },
+            Preconditions: new IPrecondition[] { new RequiresRebaseInProgress() }),
+
+        new GitAction(
+            Id: "rebase-abort",
+            Title: "Abandon the update",
+            Danger: Danger.Caution,
+            BuildArgs: (_, _) => new[] { "rebase", "--abort" },
+            Preconditions: new IPrecondition[] { new RequiresRebaseInProgress() }),
     };
 
     private static readonly Dictionary<string, GitAction> ById =

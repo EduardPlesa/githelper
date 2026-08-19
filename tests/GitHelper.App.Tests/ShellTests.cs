@@ -323,4 +323,22 @@ public class ShellTests
 
         Assert.False(band.IsVisible);
     }
+
+    [AvaloniaFact]
+    public async Task MainWindow_OffersSkipOnlyWhileARebaseIsPaused()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+        using var main = NewMain();
+        var window = new MainWindow { DataContext = main };
+        window.Show();
+
+        var skip = window.FindControl<Button>("SkipCommitButton");
+        Assert.NotNull(skip);
+        Assert.False(skip!.IsVisible);
+
+        await main.Startup.OpenAsync(repo.Path);
+
+        Assert.True(skip.IsVisible);
+    }
 }

@@ -360,4 +360,149 @@ public class ActionServiceTests
         Assert.True(outcome.Success);
         Assert.False(outcome.Paused);
     }
+
+    /// <summary>
+    /// The whole reason `Paused` cannot mean "an operation appeared". A rebase stops once per
+    /// conflicting commit; this is the second stop, reached by resolving the first and
+    /// continuing. git exits non-zero with the sequencer still in place, and the user who
+    /// just did exactly what the banner asked must not be shown an error for it.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_CallsARebaseThatStopsASecondTimePausedRatherThanFailed()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var conflicted = await repo.StartTwiceConflictingRebaseAsync();
+
+        // Resolve the first stop by hand and mark it fixed, exactly as the app has the user do.
+        repo.WriteFile(conflicted, "reconciled by hand\n");
+        await NewService().RunAsync(
+            repo.Path, new ActionRequest("mark-resolved", Path: conflicted));
+
+        var outcome = await NewService().RunAsync(repo.Path, new ActionRequest("rebase-continue"));
+
+        // git really did exit non-zero: this is the case the exit code alone gets wrong.
+        Assert.False(outcome.Success);
+
+        Assert.True(outcome.Paused);
+        Assert.Null(outcome.Error);
+        Assert.NotNull(outcome.Narration);
+
+        // Still mid-rebase, and one commit further along than it was.
+        Assert.Equal(OperationKind.Rebase, outcome.After.Operation!.Kind);
+        Assert.Equal(2, outcome.After.Operation.Rebase!.Step);
+        Assert.Contains("2 of 2", outcome.Narration!, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The other half of the same definition: an unrelated command that fails while an
+    /// operation happens to be sitting paused is a failure, not a pause. Without this, "an
+    /// operation is in flight afterwards" would swallow the error.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_StillReportsAnUnrelatedFailureThatHappensMidRebase()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var outcome = await NewService().RunAsync(
+            repo.Path, new ActionRequest("stage-file", Path: "no-such-file.txt"));
+
+        Assert.False(outcome.Success);
+        Assert.False(outcome.Paused);
+        Assert.NotNull(outcome.Error);
+    }
+
+    /// <summary>
+    /// The stash-conflict copy promises the files were put back and the stash is still there.
+    /// Rebase also prints "CONFLICT", and none of that is true mid-rebase, so the rule is
+    /// scoped to the two stash actions rather than to the word.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_DoesNotHandARebaseConflictTheStashConflictCopy()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartTwiceConflictingRebaseAsync();
+        repo.WriteFile("conflict.txt", "reconciled by hand\n");
+        await NewService().RunAsync(
+            repo.Path, new ActionRequest("mark-resolved", Path: "conflict.txt"));
+
+        var outcome = await NewService().RunAsync(repo.Path, new ActionRequest("rebase-continue"));
+
+        // Paused, so there is no error at all — and specifically not that one.
+        Assert.Null(outcome.Error);
+        Assert.DoesNotContain(
+            "stash", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Pins the bug a count-based finished/abandoned test had: RecentCommits is HEAD's log,
+    /// and a rebase detaches HEAD onto the base while it runs. Aborting restores the branch
+    /// (4 commits) over a mid-rebase HEAD sitting on main (3 commits) — a bigger count, which
+    /// the old comparison read as "finished" even though the update was just thrown away.
+    ///
+    /// It must not say "finished" — but it must not say "abandoned" either. Identity against
+    /// orig-head is all Narrator has, and a real abort is indistinguishable, from those two
+    /// snapshots alone, from a rebase that paused without rewriting anything and was then
+    /// simply continued to completion (a `break`, or an `edit` stop finished without
+    /// amending). Narrator never sees which one happened, so it says neither — "Nothing
+    /// changed" is the honest answer for both.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_NarratesAnAbortedRebaseAsUnchangedNotFinished()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartTwiceConflictingRebaseAsync();
+
+        var outcome = await NewService().RunAsync(repo.Path, new ActionRequest("rebase-abort"));
+
+        Assert.True(outcome.Success);
+        Assert.NotNull(outcome.Narration);
+        Assert.Contains("Nothing changed", outcome.Narration!, StringComparison.Ordinal);
+        Assert.DoesNotContain("up to date", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("abandoned", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The mirror bug: a `rebase --skip` that discards the only conflicting commit completes
+    /// the rebase by landing back exactly on the base it started mid-rebase on — the same
+    /// commit count as before, which the old comparison read as "nothing happened" and
+    /// narrated as abandonment of a Destructive action that just destroyed a commit.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_NarratesASkipThatCompletesTheRebaseAsFinishedNotAbandoned()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var outcome = await NewService().RunAsync(repo.Path, new ActionRequest("rebase-skip"));
+
+        Assert.True(outcome.Success);
+        Assert.NotNull(outcome.Narration);
+        Assert.Contains("up to date", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("abandoned", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A third bug in the same family, distinct from the two above: this one survives even a
+    /// correct-looking reachability check. When the branch had already merged the rebase base
+    /// in earlier (e.g. an earlier "bring this branch up to date"), the base's own commit is
+    /// still reachable from the branch's log after `rebase --abort` — not because the rebase
+    /// kept anything, but because the earlier merge put it there. A check that asks "is the
+    /// base reachable afterwards" answers yes and narrates a completed update; the honest
+    /// answer is that the branch's tip is unchanged from before the rebase, same as the
+    /// branch's own tip says.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_NarratesAnAbortedRebaseAsUnchangedEvenWhenTheBaseWasAlreadyMergedIn()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseWithPreviouslyMergedBaseAsync();
+
+        var outcome = await NewService().RunAsync(repo.Path, new ActionRequest("rebase-abort"));
+
+        Assert.True(outcome.Success);
+        Assert.NotNull(outcome.Narration);
+        Assert.Contains("Nothing changed", outcome.Narration!, StringComparison.Ordinal);
+        Assert.DoesNotContain("up to date", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+    }
 }

@@ -356,4 +356,62 @@ public class ExplainPanelViewModelTests
         Assert.True(panel.HasNarration);
         Assert.Contains("stopped", panel.Narration!, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public async Task TheDestructiveModalUsesTheActionsOwnConsequenceCopy()
+    {
+        // Not discard-file's. The sentence comes from the action's content file, so a new
+        // destructive action cannot inherit the wrong one.
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "changed\n");
+        await repo.GitAsync("stash", "push", "-m", "wip");
+        var (panel, confirmations, _) = NewPanel();
+        confirmations.NextAnswer = false;
+
+        var state = await new RepoStateReader(new GitRunner()).ReadAsync(repo.Path);
+        await panel.ShowAsync(
+            repo.Path, new ActionRequest("stash-drop", StashRef: state.Stashes[0].Ref));
+        await panel.RunAsync();
+
+        Assert.Equal(1, confirmations.CallCount);
+        Assert.Contains("stashed", confirmations.LastConsequence!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("unsaved edits", confirmations.LastConsequence!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task TheDestructiveModalFillsSlotsInTheConsequence()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("README.md", "vandalised\n");
+        var (panel, confirmations, _) = NewPanel();
+        confirmations.NextAnswer = false;
+
+        await panel.ShowAsync(repo.Path, new ActionRequest("discard-file", Path: "README.md"));
+        await panel.RunAsync();
+
+        Assert.Contains("README.md", confirmations.LastConsequence!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheDestructiveModalUsesRebaseSkipsOwnConsequenceCopy()
+    {
+        // rebase-skip's sentence never existed in any hardcoded switch. Under the old
+        // switch-based BuildConsequence, an action with no explicit case fell through to
+        // discard-file's "unsaved edits" wording via the default arm -- exactly the bug this
+        // task exists to prevent. Unlike the stash-drop and discard-file tests above, whose
+        // expected wording happens to match what the old switch already produced, this test
+        // fails against that old code and so is the one that actually proves the refactor.
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+        var (panel, confirmations, _) = NewPanel();
+        confirmations.NextAnswer = false;
+
+        await panel.ShowAsync(repo.Path, new ActionRequest("rebase-skip"));
+        await panel.RunAsync();
+
+        Assert.Equal(1, confirmations.CallCount);
+        Assert.Contains(
+            "commit git stopped on", confirmations.LastConsequence!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("unsaved edits", confirmations.LastConsequence!, StringComparison.OrdinalIgnoreCase);
+    }
 }

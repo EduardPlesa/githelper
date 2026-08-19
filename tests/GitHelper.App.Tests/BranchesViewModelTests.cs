@@ -76,6 +76,60 @@ public class BranchesViewModelTests
     }
 
     [Fact]
+    public void EveryBranchButTheCurrentOneOffersToUpdateOntoIt()
+    {
+        var f = NewFixture();
+
+        f.Branches.Update(State(
+            branches: new[] { new BranchInfo("main", null), new BranchInfo("feature", null) }));
+
+        Assert.False(f.Branches.Branches.Single(b => b.Name == "main").CanRebase);
+        Assert.True(f.Branches.Branches.Single(b => b.Name == "feature").CanRebase);
+    }
+
+    [Fact]
+    public async Task UpdatingOntoABranchPreviewsRatherThanRunningStraightAway()
+    {
+        // rebase is Caution: it rewrites commits, so it explains itself and waits.
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("branch", "feature");
+        var f = NewFixture();
+        f.Branches.Update(await f.Reader.ReadAsync(repo.Path));
+
+        await f.Branches.Branches.Single(b => b.Name == "feature")
+            .RebaseCommand.ExecuteAsync(null);
+
+        Assert.Equal("Bring this branch up to date", f.Panel.Title);
+        Assert.Equal("git rebase feature", f.Panel.CommandLine);
+        Assert.True(f.Panel.RequiresInlineConfirmation);
+    }
+
+    [Fact]
+    public async Task UpdatingIsRefusedWithAnExplanationOnceTheBranchIsOnTheServer()
+    {
+        // The button stays clickable on purpose: a refusal the user can read beats a
+        // disabled control they cannot ask a question of.
+        //
+        // The preview flow always re-reads state from disk (ExplainPanelViewModel.ShowAsync
+        // calls ActionService.PreviewAsync, which re-runs RepoStateReader), so an in-memory
+        // "with { Upstream = ... }" override on a state object handed to Update would never
+        // reach the precondition check. The current branch's upstream has to be real.
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("branch", "feature");
+        await repo.GitAsync("remote", "add", "origin", "https://example.invalid/x.git");
+        await repo.GitAsync("update-ref", "refs/remotes/origin/main", "HEAD");
+        await repo.GitAsync("branch", "--set-upstream-to=origin/main", "main");
+        var f = NewFixture();
+        f.Branches.Update(await f.Reader.ReadAsync(repo.Path));
+
+        await f.Branches.Branches.Single(b => b.Name == "feature")
+            .RebaseCommand.ExecuteAsync(null);
+
+        Assert.False(f.Panel.CanRun);
+        Assert.Contains(f.Panel.Blockers, b => b.Contains("force-push", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Update_ListsBranchesAndMarksTheCurrentOne()
     {
         using var repo = await TestRepo.CreateAsync();

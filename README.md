@@ -139,7 +139,7 @@ explanation says so in advance, so it arrives expected rather than alarming.
 
 ## The action set
 
-Nineteen actions, covering roughly the 90% of beginner git.
+Twenty-nine actions, covering roughly the 90% of beginner git.
 
 | Action | Command | Danger |
 |---|---|---|
@@ -162,6 +162,16 @@ Nineteen actions, covering roughly the 90% of beginner git.
 | Mark a conflict as fixed | `git add -- <path>` | Safe |
 | Finish the merge | `git merge --continue` | Caution |
 | Abandon the merge | `git merge --abort` | Caution |
+| Tag this point | `git tag -- <name>` | Safe |
+| Delete tag | `git tag -d -- <name>` | Caution |
+| Set changes aside | `git stash push [-m <message>]` | Safe |
+| Bring back stashed changes | `git stash pop <ref>` | Caution |
+| Copy back stashed changes | `git stash apply <ref>` | Caution |
+| Delete stash | `git stash drop <ref>` | **Destructive** |
+| Bring this branch up to date | `git rebase <base>` | Caution |
+| Carry on with the update | `git rebase --continue` | Caution |
+| Skip this commit | `git rebase --skip` | **Destructive** |
+| Abandon the update | `git rebase --abort` | Caution |
 
 Four choices in that table are teaching decisions, not technical ones:
 
@@ -178,8 +188,9 @@ Four choices in that table are teaching decisions, not technical ones:
   needs a personal access token, and no view in this app may contain a token field. The
   trade is a click on github.com in exchange for a promise the app can keep absolutely.
 
-`discard-file` is the only Destructive action. That's the point: there are very few ways to lose
-work.
+`discard-file`, `stash-drop` and `rebase-skip` are the only Destructive actions — uncommitted
+edits, a shelved change, and a commit dropped during an update. That's the point: there are very
+few ways to lose work, and each one says exactly what it costs before it happens.
 
 ## Architecture
 
@@ -257,9 +268,11 @@ Recorded so they read as decisions rather than oversights. The reasoning, the co
 the order they should close in is in **[the roadmap](docs/roadmap.md)** — including two items that
 are *declined* rather than deferred:
 
-- ~~Merge.~~ Shipped, along with the operation-state model it needed: the repository can now be
-  part-way through something, and a band across the top of the window says so and offers the way
-  out. **Rebase, stash, cherry-pick, and tags** are still deferred.
+- ~~Merge and rebase.~~ Both shipped, along with the operation-state model they needed: the
+  repository can now be part-way through something, and a band across the top of the window says
+  so and offers the way out. Rebase is deliberately narrow — it will not rewrite a branch that is
+  already on a server, because that needs a force-push this app does not do. **Cherry-pick** is
+  still deferred.
 - **Guided conflict resolution** — still deferred. A stopped merge now tells you which files
   need attention and takes "I fixed this one" per file, but the fixing itself happens in your
   own editor. Doing it in-app is the scariest part of git for a beginner and the most complex UI
@@ -281,7 +294,7 @@ are *declined* rather than deferred:
 src/
   GitHelper.Core/       engine — git, parsing, actions, errors
   GitHelper.Content/    authored explanations + glossary + .gitignore templates
-                        (19 actions, 2 setup ops, 13 terms, 5 templates)
+                        (29 actions, 2 setup ops, 16 terms, 5 templates)
   GitHelper.App/        Avalonia UI
 tests/
   GitHelper.Core.Tests/ engine tests against real git

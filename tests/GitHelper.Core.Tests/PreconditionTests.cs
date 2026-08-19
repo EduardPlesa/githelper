@@ -268,6 +268,21 @@ public class PreconditionTests
         var notMerging = new RequiresMergeInProgress().Evaluate(State(), request);
         Assert.False(notMerging.Satisfied);
         Assert.False(string.IsNullOrWhiteSpace(notMerging.Message));
+
+        foreach (var precondition in new IPrecondition[]
+                 {
+                     new RequiresRebaseInProgress(),
+                     new RequiresOperationInProgress(),
+                 })
+        {
+            var result = precondition.Evaluate(State(), request);
+            Assert.False(result.Satisfied, $"{precondition.GetType().Name} unexpectedly passed");
+            Assert.False(string.IsNullOrWhiteSpace(result.Message));
+        }
+
+        var pushed = new RequiresNoUpstream().Evaluate(State(upstream: "origin/main"), request);
+        Assert.False(pushed.Satisfied);
+        Assert.False(string.IsNullOrWhiteSpace(pushed.Message));
     }
 
     private static FileChange Conflicted(string path)
@@ -316,6 +331,55 @@ public class PreconditionTests
             changes: new FileChange("a.txt", null, ChangeKind.Modified, ChangeKind.None));
 
         Assert.True(new RequiresNoUnmergedFiles().Evaluate(resolved, Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresRebaseInProgress_FailsDuringAMergeRatherThanAnyOperation()
+    {
+        // The merge-specific and rebase-specific checks must not be interchangeable, or the
+        // band offers "Finish the merge" in the middle of a rebase.
+        var merging = State(operation: new OperationState(OperationKind.Merge, "feature"));
+
+        Assert.False(new RequiresRebaseInProgress().Evaluate(merging, Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresRebaseInProgress_PassesDuringARebase()
+    {
+        var rebasing = State(operation: new OperationState(OperationKind.Rebase, "main"));
+
+        Assert.True(new RequiresRebaseInProgress().Evaluate(rebasing, Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresOperationInProgress_PassesForEitherKind()
+    {
+        // mark-resolved uses this: fixing a conflict is the same act either way.
+        foreach (var kind in new[] { OperationKind.Merge, OperationKind.Rebase })
+        {
+            var state = State(operation: new OperationState(kind, "other"));
+
+            Assert.True(new RequiresOperationInProgress().Evaluate(state, Request()).Satisfied);
+        }
+    }
+
+    [Fact]
+    public void RequiresOperationInProgress_FailsWhenNothingIsInFlight()
+    {
+        Assert.False(new RequiresOperationInProgress().Evaluate(State(), Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresNoUpstream_RefusesABranchThatIsAlreadyOnTheServer()
+    {
+        // Rewriting pushed commits needs a force-push this app does not have.
+        Assert.False(new RequiresNoUpstream().Evaluate(State(upstream: "origin/main"), Request()).Satisfied);
+    }
+
+    [Fact]
+    public void RequiresNoUpstream_AllowsABranchThatHasNeverBeenSent()
+    {
+        Assert.True(new RequiresNoUpstream().Evaluate(State(upstream: null), Request()).Satisfied);
     }
 
     private static ActionRequest UrlRequest(string? url)

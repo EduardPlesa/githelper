@@ -137,6 +137,25 @@ public class ErrorTranslatorTests
     }
 
     [Fact]
+    public void Translate_GivesTheStashClashCopyOnlyToTheStashActions()
+    {
+        const string raw = "CONFLICT (content): Merge conflict in conflict.txt";
+
+        var forStash = ErrorTranslator.Translate(Failure(raw), "stash-pop")!;
+        Assert.Equal("That stash clashes with what's on this branch now", forStash.Summary);
+
+        // Rebase prints the same word, and every promise in that copy — files put back, the
+        // stash still there — would be a lie mid-rebase.
+        foreach (var actionId in new[] { "rebase", "rebase-continue", "rebase-skip", null })
+        {
+            var translated = ErrorTranslator.Translate(Failure(raw), actionId)!;
+
+            Assert.False(translated.IsUnderstood);
+            Assert.DoesNotContain("stash", translated.Explanation, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
     public void EveryRuleProducesNonEmptyUserFacingCopy()
     {
         string[] samples =

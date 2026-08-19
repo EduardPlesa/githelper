@@ -79,6 +79,11 @@ public sealed class RepoStateReader(IGitRunner runner)
     /// </summary>
     private async Task<OperationState?> ReadOperationAsync(string repoPath, CancellationToken ct)
     {
+        // Rebase first: a rebase conflict does not set MERGE_HEAD, so the two cannot collide
+        // today, and asking the more specific question first keeps that true if git changes.
+        var rebase = await ReadRebaseAsync(repoPath, ct);
+        if (rebase is not null) return rebase;
+
         // Exits non-zero when there is no merge in progress, so the exit code alone answers
         // the question and there is nothing to parse.
         var mergeHead = await runner.RunAsync(
@@ -89,6 +94,89 @@ public sealed class RepoStateReader(IGitRunner runner)
         return new OperationState(
             OperationKind.Merge,
             await NameOfAsync(repoPath, mergeHead.StdOut.Trim(), ct));
+    }
+
+    /// <summary>
+    /// A paused rebase, or null. git exposes no porcelain for this — status carries no rebase
+    /// progress and its long form is human text — so this reads git's own sequencer files.
+    /// The path is asked of git rather than assumed, which is what makes it correct in a
+    /// linked worktree, where .git is a file rather than a directory.
+    /// </summary>
+    private async Task<OperationState?> ReadRebaseAsync(string repoPath, CancellationToken ct)
+    {
+        // rebase-merge is the modern backend; rebase-apply is the older --apply one.
+        var directory = await SequencerDirectoryAsync(repoPath, "rebase-merge", ct)
+                        ?? await SequencerDirectoryAsync(repoPath, "rebase-apply", ct);
+
+        if (directory is null) return null;
+
+        var onto = ReadSequencerFile(directory, "onto");
+        var label = onto is null ? null : await NameOfAsync(repoPath, onto, ct);
+
+        return new OperationState(OperationKind.Rebase, label, await ProgressAsync(repoPath, directory, ct));
+    }
+
+    /// <summary>Resolves one sequencer directory through git, or null when it is not there.</summary>
+    private async Task<string?> SequencerDirectoryAsync(
+        string repoPath, string name, CancellationToken ct)
+    {
+        var path = await runner.RunAsync(repoPath, new[] { "rev-parse", "--git-path", name }, ct);
+        if (!path.Success) return null;
+
+        var relative = path.StdOut.Trim();
+        if (relative.Length == 0) return null;
+
+        // --git-path answers relative to the working directory git ran in, which is repoPath.
+        // Path.Combine returns the second argument unchanged when it is already absolute.
+        var full = Path.Combine(repoPath, relative);
+        return Directory.Exists(full) ? full : null;
+    }
+
+    /// <summary>
+    /// How far through the sequence the rebase is, or null when git does not say. These file
+    /// names are not documented API, so a missing or unparseable one costs the counter rather
+    /// than the operation.
+    /// </summary>
+    private async Task<RebaseProgress?> ProgressAsync(
+        string repoPath, string directory, CancellationToken ct)
+    {
+        // rebase-merge names them msgnum/end; rebase-apply names them next/last.
+        var stepText = ReadSequencerFile(directory, "msgnum") ?? ReadSequencerFile(directory, "next");
+        var totalText = ReadSequencerFile(directory, "end") ?? ReadSequencerFile(directory, "last");
+
+        if (!int.TryParse(stepText, out var step)) return null;
+        if (!int.TryParse(totalText, out var total)) return null;
+
+        var stopped = await runner.RunAsync(
+            repoPath, new[] { "log", "-1", "--format=%s", "REBASE_HEAD" }, ct);
+
+        var subject = stopped.Success ? stopped.StdOut.Trim() : string.Empty;
+
+        // Written by both the rebase-merge and rebase-apply backends before the first commit
+        // is ever replayed. Not documented API, so treated the same as msgnum/end: a missing
+        // or unparseable file costs the field, not the operation.
+        var origHead = ReadSequencerFile(directory, "orig-head");
+
+        return new RebaseProgress(step, total, subject.Length == 0 ? null : subject, origHead);
+    }
+
+    /// <summary>One sequencer file's trimmed contents, or null if it is absent or unreadable.</summary>
+    private static string? ReadSequencerFile(string directory, string name)
+    {
+        try
+        {
+            var path = Path.Combine(directory, name);
+            return File.Exists(path) ? File.ReadAllText(path).Trim() : null;
+        }
+        catch (IOException)
+        {
+            // Being mid-write is a missing answer, not a fault.
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

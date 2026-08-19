@@ -137,18 +137,20 @@ public sealed class ActionService(
                 Blockers: Array.Empty<PreconditionResult>());
         }
 
-        // A merge that stopped on conflicts exits non-zero, so the exit code alone would
+        // An operation that stopped on conflicts exits non-zero, so the exit code alone would
         // route it to the error panel. It is narrated like a success and carries no error.
+        // That covers a rebase stopping for the second and third time as much as the first —
+        // see ActionOutcome.IsPaused for why the test is what it is.
         //
         // A stash pop that conflicts is a different animal and is handled above: it leaves
         // unmerged index entries without setting MERGE_HEAD, so it is never Paused.
-        var paused = before.Operation is null && after.Operation is not null;
+        var paused = ActionOutcome.IsPaused(before, after);
 
         return new ActionOutcome(
             Success: result.Success,
             Result: result,
             Narration: result.Success || paused ? Narrator.Describe(before, after) : null,
-            Error: paused ? null : ErrorTranslator.Translate(result),
+            Error: paused ? null : ErrorTranslator.Translate(result, action.Id),
             Before: before,
             After: after,
             Blockers: Array.Empty<PreconditionResult>());

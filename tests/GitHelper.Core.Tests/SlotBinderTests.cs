@@ -107,6 +107,28 @@ public class SlotBinderTests
     }
 
     [Fact]
+    public void Bind_NamesTheBaseARebaseIsReplayingOnto()
+    {
+        var rebasing = State() with
+        {
+            Operation = new OperationState(OperationKind.Rebase, "main"),
+        };
+
+        Assert.Equal("main", SlotBinder.Bind(rebasing)["rebasingOnto"]);
+    }
+
+    [Fact]
+    public void Bind_DescribesAnUnnameableRebaseBasePlainly()
+    {
+        var rebasing = State() with
+        {
+            Operation = new OperationState(OperationKind.Rebase, null),
+        };
+
+        Assert.Equal("the other branch", SlotBinder.Bind(rebasing)["rebasingOnto"]);
+    }
+
+    [Fact]
     public void Bind_ListsStagedFilesAndTruncatesLongLists()
     {
         var many = Enumerable.Range(1, 10)

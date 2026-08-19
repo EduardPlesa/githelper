@@ -76,49 +76,77 @@ public static class Narrator
         // was. A rebase detaches HEAD onto the base while it runs, so `before` and `after`
         // are logs of two different tips and comparing their lengths compares nothing: the
         // count goes down when finishing drops a commit (a completing --skip), and it can go
-        // up on an abort that simply restores a longer branch. So for a rebase, "committed"
-        // asks an identity question instead: is `after`'s tip the exact commit git recorded as
-        // the branch's tip before this rebase began (orig-head)? An abort restores that commit
-        // precisely; no completion path can ever produce it, because a rebase that would have
-        // left the tip unchanged would not have paused. See RebaseCompleted for the fallback
-        // this uses when orig-head could not be read, and why that fallback is not the rule.
-        var committed = before.Operation.Kind == OperationKind.Rebase
-            ? RebaseCompleted(before, after)
-            : after.RecentCommits.Count > before.RecentCommits.Count;
-
-        // Naming the base is the point of the sentence — "up to date" on its own leaves the
-        // user to remember what with. Null when the base commit has no reachable name, in
-        // which case the sentence stops short rather than inventing one.
-        var onto = before.Operation.IncomingLabel;
-
-        parts.Add((before.Operation.Kind, committed) switch
+        // up on an abort that simply restores a longer branch. So for a rebase, the outcome
+        // asks an identity question instead: is `after`'s tip the exact commit git recorded
+        // as the branch's tip before this rebase began (orig-head)? An abort restores that
+        // commit precisely — but so can a rebase that paused without ever rewriting anything
+        // and then simply ran to completion: a `break`, an `edit` stop the user continues
+        // without amending, or a failing `--exec` all pause with the tip still sitting on
+        // orig-head. This app's own rebase action can never create that pause, but
+        // `rebase-continue` only requires a rebase to already be in flight, and operation
+        // state is re-read from disk on every refresh, so a `git rebase -i` started in the
+        // user's terminal is fully drivable through the app from there. Identity alone
+        // cannot tell that case apart from an abort, so it is not narrated as either — see
+        // DescribeRebaseOutcome for the three-way split this produces, and for the fallback
+        // used when orig-head could not be read.
+        if (before.Operation.Kind == OperationKind.Rebase)
         {
-            (OperationKind.Rebase, true) => onto is null
-                ? "Your branch is now up to date."
-                : $"Your branch is now up to date with {onto}.",
-            (OperationKind.Rebase, false) =>
-                "The update was abandoned. Your branch is back as it was.",
-            (_, true) => "The merge is finished.",
-            (_, false) => "The merge was abandoned. Your files are back as they were.",
-        });
+            // Naming the base is the point of the sentence — "up to date" on its own leaves
+            // the user to remember what with. Null when the base commit has no reachable
+            // name, in which case the sentence stops short rather than inventing one.
+            var onto = before.Operation.IncomingLabel;
+
+            parts.Add(DescribeRebaseOutcome(before, after) switch
+            {
+                RebaseOutcome.Completed => onto is null
+                    ? "Your branch is now up to date."
+                    : $"Your branch is now up to date with {onto}.",
+                RebaseOutcome.Unchanged =>
+                    "Nothing changed. Your branch is where it was.",
+                _ =>
+                    "The update was abandoned. Your branch is back as it was.",
+            });
+            return;
+        }
+
+        var committed = after.RecentCommits.Count > before.RecentCommits.Count;
+
+        parts.Add(committed
+            ? "The merge is finished."
+            : "The merge was abandoned. Your files are back as they were.");
     }
 
+    /// <summary>The three ways a paused rebase can end, as observed from two snapshots.</summary>
+    private enum RebaseOutcome { Completed, Unchanged, Abandoned }
+
     /// <summary>
-    /// Whether the rebase finished, decided by identity: is `after`'s tip still the exact
-    /// commit git recorded as the branch's tip before the rebase began (orig-head)? An abort
-    /// restores that commit precisely, and no completion path — continue, skip, or an
-    /// auto-drop of everything already upstream — can ever reproduce it, because a rebase
-    /// that would have left the tip unchanged would not have paused to begin with. So
-    /// "completed" is simply "orig-head is known, and after's tip is not it".
+    /// Tells apart three outcomes for a paused rebase, decided by identity: is `after`'s tip
+    /// still the exact commit git recorded as the branch's tip before the rebase began
+    /// (orig-head)?
     ///
-    /// When orig-head could not be read (it is not documented git API), this falls back to
+    /// A tip that differs from orig-head is Completed — continue, skip, and an auto-drop of
+    /// everything already upstream all move the tip somewhere new. A tip identical to
+    /// orig-head is Unchanged: an abort restores that commit precisely, but so does a rebase
+    /// that paused without ever rewriting anything — a `break`, an `edit` stop continued
+    /// without amending, or a failing `--exec` — and was then simply continued to completion.
+    /// This app's own rebase action can never create that pause, but `rebase-continue` only
+    /// requires a rebase to already be in flight, and operation state is re-read from disk on
+    /// every refresh, so a `git rebase -i` started in the user's terminal is fully drivable
+    /// through the app from there, making the case reachable. Nothing was written either way
+    /// when it happens, so choosing between "finished" and "abandoned" would be guessing —
+    /// which is exactly what Unchanged exists to avoid saying.
+    ///
+    /// When orig-head could not be read — either the `orig-head` file itself is missing, or
+    /// <c>RebaseProgress</c> is null wholesale because `msgnum`/`end` (or `next`/`last`)
+    /// would not parse, since the whole chain collapses through `?.` — this falls back to
     /// asking whether the commit `before` was sitting on mid-rebase is still reachable in
-    /// `after`'s log. That fallback has a known hole: it is a reachability question, not an
-    /// identity one, so it answers "completed" for an abort whenever the rebase base already
-    /// happens to be an ancestor of the branch — for instance because the branch had
-    /// previously merged that base in, which is exactly what "bring this branch up to date"
-    /// runs into on a branch that was updated this way before. Kept only because "orig-head
-    /// unreadable" is itself already the rare case.
+    /// `after`'s log, and can only report Completed or Abandoned; the fallback has no way to
+    /// tell Unchanged apart from either. That fallback also has a known hole of its own: it
+    /// is a reachability question, not an identity one, so it answers "completed" for an
+    /// abort whenever the rebase base already happens to be an ancestor of the branch — for
+    /// instance because the branch had previously merged that base in, which is exactly what
+    /// "bring this branch up to date" runs into on a branch that was updated this way before.
+    /// Kept only because "orig-head unreadable" is itself already the rare case.
     ///
     /// `before.RecentCommits` cannot be empty against a real repository — a rebase cannot be
     /// running without at least one commit to be running on — but nothing stops a caller from
@@ -129,20 +157,33 @@ public static class Narrator
     /// completed. An empty `after` answers itself either way — an empty haystack contains
     /// nothing.
     /// </summary>
-    private static bool RebaseCompleted(RepoState before, RepoState after)
+    private static RebaseOutcome DescribeRebaseOutcome(RepoState before, RepoState after)
     {
         var origHead = before.Operation?.Rebase?.OrigHead;
         if (origHead is not null)
         {
             var afterTip = after.RecentCommits.FirstOrDefault()?.Hash;
-            return !string.Equals(afterTip, origHead, StringComparison.Ordinal);
+
+            // RepoStateReader swallows a failed `git log` into an empty RecentCommits rather
+            // than surfacing the failure, so an empty list here means "the tip is unknown",
+            // not "the tip differs from orig-head". Treating null as different would report
+            // the rebase Completed on no evidence at all — the one direction this class
+            // exists to forbid. Abandoned costs nothing extra to claim (it was already the
+            // "not completed" answer) and keeps the guess on the side that never overstates.
+            if (afterTip is null) return RebaseOutcome.Abandoned;
+
+            return string.Equals(afterTip, origHead, StringComparison.Ordinal)
+                ? RebaseOutcome.Unchanged
+                : RebaseOutcome.Completed;
         }
 
         var sought = before.RecentCommits.Count > 0 ? before.RecentCommits[0].Hash : null;
 
-        return sought is null
+        var completed = sought is null
             ? after.RecentCommits.Count > 0
             : after.RecentCommits.Any(c => string.Equals(c.Hash, sought, StringComparison.Ordinal));
+
+        return completed ? RebaseOutcome.Completed : RebaseOutcome.Abandoned;
     }
 
     /// <summary>The sentence for an operation that has just started and immediately stopped.</summary>

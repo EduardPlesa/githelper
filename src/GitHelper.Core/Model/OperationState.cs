@@ -39,13 +39,17 @@ public sealed record OperationState(
 /// <param name="StoppedAtSubject">Subject line of the commit git stopped on, or null.</param>
 /// <param name="OrigHead">
 /// The branch tip git recorded just before this rebase started, read from the sequencer's
-/// <c>orig-head</c> file. An abort restores the branch to exactly this commit; no completion
-/// path (continue, skip, or an auto-drop) can ever land back on it, because a rebase that
-/// would have produced the original tip unchanged would not have paused to begin with. That
-/// makes it an identity check for whether the rebase finished or was called off — unlike
-/// asking whether some commit is merely still reachable, which a branch that already contains
-/// the rebase base (e.g. from an earlier merge) can satisfy by coincidence even after an
-/// abort. Null when the file could not be read, riding along with the same nullability as the
-/// rest of this record.
+/// <c>orig-head</c> file. An abort restores the branch to exactly this commit — but a
+/// completed rebase can land back on it too: this app's own rebase action can never pause
+/// without having rewritten something, but an interactive rebase started outside the app can
+/// pause with nothing rewritten yet (a `break`, an `edit` stop continued without amending, a
+/// failing `--exec`), and finishing from there produces the identical tip. Comparing against
+/// this value is still the best identity check available for whether the rebase moved —
+/// unlike asking whether some commit is merely still reachable, which a branch that already
+/// contains the rebase base (e.g. from an earlier merge) can satisfy by coincidence even
+/// after an abort — it just cannot, on its own, distinguish "finished with nothing to do"
+/// from "called off"; see <c>Narrator.DescribeRebaseOutcome</c> for how that ambiguity is
+/// narrated (as neither, honestly). Null when the file could not be read, riding along with
+/// the same nullability as the rest of this record.
 /// </param>
 public sealed record RebaseProgress(int Step, int Total, string? StoppedAtSubject, string? OrigHead);

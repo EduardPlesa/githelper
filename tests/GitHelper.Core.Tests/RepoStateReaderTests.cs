@@ -280,4 +280,25 @@ public class RepoStateReaderTests
         Assert.Equal(OperationKind.Rebase, state.Operation!.Kind);
         Assert.Null(state.Operation.Rebase);
     }
+
+    /// <summary>
+    /// Narrator's rebase narration leans on OrigHead being the real pre-rebase branch tip —
+    /// so this checks it against a value read independently of the sequencer file the reader
+    /// itself parses. Git also points its own <c>ORIG_HEAD</c> ref at the same commit when a
+    /// rebase starts, which is a second, independent source for the same fact.
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_ReadsOrigHeadFromAPausedRebase()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseAsync();
+
+        var origHeadRef = await repo.GitAsync("rev-parse", "ORIG_HEAD");
+        var expected = origHeadRef.StdOut.Trim();
+
+        var state = await NewReader().ReadAsync(repo.Path);
+
+        Assert.NotNull(state.Operation!.Rebase);
+        Assert.Equal(expected, state.Operation.Rebase!.OrigHead);
+    }
 }

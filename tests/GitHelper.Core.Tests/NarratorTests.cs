@@ -216,14 +216,20 @@ public class NarratorTests
         Assert.Contains("Your branch is now up to date.", narration, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// `after`'s tip is exactly OrigHead — the same commit `before` also carries in its own
+    /// log — which is what a real abort looks like. But it is also what a rebase that paused
+    /// without rewriting anything looks like once it is simply continued to completion: a
+    /// `break`, or an `edit` stop finished without amending, leaves the tip sitting on
+    /// orig-head too, and Narrator is never told which of the two happened (it is not passed
+    /// an action id — only these two snapshots). So it must not guess "abandoned"; the honest
+    /// sentence is the same either way. With no commits in `before` at all, this test would
+    /// pass even if the real OrigHead comparison were replaced by "anything showed up in
+    /// after", which is exactly the vacuous shape this guards against.
+    /// </summary>
     [Fact]
-    public void Describe_ReportsARebaseThatWasAbandoned()
+    public void Describe_ReportsARebaseAsUnchangedWhenTheTipIsBackAtOrigHead()
     {
-        // `after`'s tip is exactly OrigHead — the same commit `before` also carries in its own
-        // log — modelling a real abort restoring the branch to precisely where it started.
-        // With no commits in `before` at all, this test would pass even if the real OrigHead
-        // comparison were replaced by "anything showed up in after", which is exactly the
-        // vacuous shape this guards against.
         var origHead = Commit("bbb", "commit that was HEAD before the rebase started");
         var before = State(
             commits: new[] { origHead },
@@ -232,8 +238,68 @@ public class NarratorTests
 
         var narration = Narrator.Describe(before, State(commits: new[] { origHead }));
 
-        // The rebase-specific sentence, not merely "abandoned" — which the merge wording
-        // also contains, so asserting on it alone discriminates nothing.
+        Assert.Contains(
+            "Nothing changed. Your branch is where it was.",
+            narration,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("abandoned", narration, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("up to date", narration, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// RepoStateReader swallows a failed `git log` into an empty RecentCommits array rather
+    /// than surfacing the failure, so an empty `after` here means "the tip is unknown," not
+    /// "the tip differs from orig-head." Reporting this as completed would be the one
+    /// direction this class exists to forbid: claiming success out of not knowing.
+    /// </summary>
+    [Fact]
+    public void Describe_DoesNotClaimARebaseCompletedWhenAfterHasNoCommitsToCompareAgainst()
+    {
+        var origHead = Commit("bbb", "commit that was HEAD before the rebase started");
+        var before = State(
+            commits: new[] { origHead },
+            operation: Rebasing(origHead: origHead.Hash),
+            changes: Conflicted("a.txt"));
+
+        var narration = Narrator.Describe(before, State());
+
+        Assert.DoesNotContain("up to date", narration, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// When orig-head could not be read — real case: `git am` creates `rebase-apply/` with
+    /// `next`/`last` but no `orig-head` file, so `RebaseProgress.OrigHead` is null —
+    /// DescribeRebaseOutcome falls back to asking whether the commit `before` was sitting on
+    /// mid-rebase is still reachable in `after`'s log. Sought present: completed.
+    /// </summary>
+    [Fact]
+    public void Describe_ReportsARebaseThatFinishedThroughTheFallbackWhenOrigHeadIsUnavailable()
+    {
+        var midRebase = Commit("ccc", "commit HEAD was on mid-rebase");
+        var before = State(
+            commits: new[] { midRebase },
+            operation: Rebasing(origHead: null),
+            changes: Conflicted("a.txt"));
+        var after = State(commits: new[] { Commit("aaa", "my work"), midRebase });
+
+        var narration = Narrator.Describe(before, after);
+
+        Assert.Contains("up to date", narration, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The fallback's other outcome: sought absent from `after`'s log — abandoned.</summary>
+    [Fact]
+    public void Describe_ReportsARebaseThatWasAbandonedThroughTheFallbackWhenOrigHeadIsUnavailable()
+    {
+        var midRebase = Commit("ccc", "commit HEAD was on mid-rebase");
+        var before = State(
+            commits: new[] { midRebase },
+            operation: Rebasing(origHead: null),
+            changes: Conflicted("a.txt"));
+        var after = State(commits: new[] { Commit("aaa", "unrelated commit") });
+
+        var narration = Narrator.Describe(before, after);
+
         Assert.Contains(
             "The update was abandoned. Your branch is back as it was.",
             narration,

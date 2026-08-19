@@ -439,9 +439,16 @@ public class ActionServiceTests
     /// and a rebase detaches HEAD onto the base while it runs. Aborting restores the branch
     /// (4 commits) over a mid-rebase HEAD sitting on main (3 commits) — a bigger count, which
     /// the old comparison read as "finished" even though the update was just thrown away.
+    ///
+    /// It must not say "finished" — but it must not say "abandoned" either. Identity against
+    /// orig-head is all Narrator has, and a real abort is indistinguishable, from those two
+    /// snapshots alone, from a rebase that paused without rewriting anything and was then
+    /// simply continued to completion (a `break`, or an `edit` stop finished without
+    /// amending). Narrator never sees which one happened, so it says neither — "Nothing
+    /// changed" is the honest answer for both.
     /// </summary>
     [Fact]
-    public async Task RunAsync_NarratesAnAbortedRebaseAsAbandonedNotFinished()
+    public async Task RunAsync_NarratesAnAbortedRebaseAsUnchangedNotFinished()
     {
         using var repo = await TestRepo.CreateAsync();
         await repo.StartTwiceConflictingRebaseAsync();
@@ -450,8 +457,9 @@ public class ActionServiceTests
 
         Assert.True(outcome.Success);
         Assert.NotNull(outcome.Narration);
-        Assert.Contains("abandoned", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Nothing changed", outcome.Narration!, StringComparison.Ordinal);
         Assert.DoesNotContain("up to date", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("abandoned", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -481,10 +489,11 @@ public class ActionServiceTests
     /// still reachable from the branch's log after `rebase --abort` — not because the rebase
     /// kept anything, but because the earlier merge put it there. A check that asks "is the
     /// base reachable afterwards" answers yes and narrates a completed update; the honest
-    /// answer is that this update was abandoned, same as the branch's own tip says.
+    /// answer is that the branch's tip is unchanged from before the rebase, same as the
+    /// branch's own tip says.
     /// </summary>
     [Fact]
-    public async Task RunAsync_NarratesAnAbortedRebaseAsAbandonedEvenWhenTheBaseWasAlreadyMergedIn()
+    public async Task RunAsync_NarratesAnAbortedRebaseAsUnchangedEvenWhenTheBaseWasAlreadyMergedIn()
     {
         using var repo = await TestRepo.CreateAsync();
         await repo.StartConflictingRebaseWithPreviouslyMergedBaseAsync();
@@ -493,7 +502,7 @@ public class ActionServiceTests
 
         Assert.True(outcome.Success);
         Assert.NotNull(outcome.Narration);
-        Assert.Contains("abandoned", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Nothing changed", outcome.Narration!, StringComparison.Ordinal);
         Assert.DoesNotContain("up to date", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
     }
 }

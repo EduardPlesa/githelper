@@ -473,4 +473,27 @@ public class ActionServiceTests
         Assert.Contains("up to date", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("abandoned", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    /// A third bug in the same family, distinct from the two above: this one survives even a
+    /// correct-looking reachability check. When the branch had already merged the rebase base
+    /// in earlier (e.g. an earlier "bring this branch up to date"), the base's own commit is
+    /// still reachable from the branch's log after `rebase --abort` — not because the rebase
+    /// kept anything, but because the earlier merge put it there. A check that asks "is the
+    /// base reachable afterwards" answers yes and narrates a completed update; the honest
+    /// answer is that this update was abandoned, same as the branch's own tip says.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_NarratesAnAbortedRebaseAsAbandonedEvenWhenTheBaseWasAlreadyMergedIn()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingRebaseWithPreviouslyMergedBaseAsync();
+
+        var outcome = await NewService().RunAsync(repo.Path, new ActionRequest("rebase-abort"));
+
+        Assert.True(outcome.Success);
+        Assert.NotNull(outcome.Narration);
+        Assert.Contains("abandoned", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("up to date", outcome.Narration!, StringComparison.OrdinalIgnoreCase);
+    }
 }

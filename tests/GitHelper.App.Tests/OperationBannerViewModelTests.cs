@@ -114,7 +114,7 @@ public class OperationBannerViewModelTests
     }
 
     private static OperationState Rebasing(int step = 2, int total = 5, string? stoppedAt = "my work")
-        => new(OperationKind.Rebase, "main", new RebaseProgress(step, total, stoppedAt));
+        => new(OperationKind.Rebase, "main", new RebaseProgress(step, total, stoppedAt, "orig0000"));
 
     [Fact]
     public void ARebaseSaysWhereItHasGotToAndWhichCommitStoppedIt()

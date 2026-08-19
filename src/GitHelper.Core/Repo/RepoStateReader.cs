@@ -152,7 +152,12 @@ public sealed class RepoStateReader(IGitRunner runner)
 
         var subject = stopped.Success ? stopped.StdOut.Trim() : string.Empty;
 
-        return new RebaseProgress(step, total, subject.Length == 0 ? null : subject);
+        // Written by both the rebase-merge and rebase-apply backends before the first commit
+        // is ever replayed. Not documented API, so treated the same as msgnum/end: a missing
+        // or unparseable file costs the field, not the operation.
+        var origHead = ReadSequencerFile(directory, "orig-head");
+
+        return new RebaseProgress(step, total, subject.Length == 0 ? null : subject, origHead);
     }
 
     /// <summary>One sequencer file's trimmed contents, or null if it is absent or unreadable.</summary>

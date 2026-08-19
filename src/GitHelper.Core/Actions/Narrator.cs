@@ -26,7 +26,7 @@ public static class Narrator
         // what "The merge is finished." above is deliberately terse and relies on. Scoping this
         // to rebase specifically (rather than "either side has any operation") also means an
         // action like undo-last-commit still gets its "Removed commit ... from the history."
-        // when run mid-rebase from the History tab — that sentence is true and is the whole
+        // when run mid-merge from the History tab — that sentence is true and is the whole
         // point of running it.
         if (before.Operation?.Kind != OperationKind.Rebase && after.Operation?.Kind != OperationKind.Rebase)
             DescribeCommits(before, after, parts);
@@ -76,12 +76,12 @@ public static class Narrator
         // was. A rebase detaches HEAD onto the base while it runs, so `before` and `after`
         // are logs of two different tips and comparing their lengths compares nothing: the
         // count goes down when finishing drops a commit (a completing --skip), and it can go
-        // up on an abort that simply restores a longer branch. What survives the HEAD move is
-        // the commit `before` was sitting on mid-rebase — the base, or the highest commit
-        // already replayed. Aborting resets the branch to where it was, which by definition
-        // does not contain that commit; finishing (by replaying the last stop or skipping it)
-        // leaves it as an ancestor of the new tip. So for a rebase, "committed" asks whether
-        // that commit is still reachable afterwards rather than whether the count grew.
+        // up on an abort that simply restores a longer branch. So for a rebase, "committed"
+        // asks an identity question instead: is `after`'s tip the exact commit git recorded as
+        // the branch's tip before this rebase began (orig-head)? An abort restores that commit
+        // precisely; no completion path can ever produce it, because a rebase that would have
+        // left the tip unchanged would not have paused. See RebaseCompleted for the fallback
+        // this uses when orig-head could not be read, and why that fallback is not the rule.
         var committed = before.Operation.Kind == OperationKind.Rebase
             ? RebaseCompleted(before, after)
             : after.RecentCommits.Count > before.RecentCommits.Count;
@@ -104,29 +104,40 @@ public static class Narrator
     }
 
     /// <summary>
-    /// Whether the commit `before` was sitting on mid-rebase is still reachable in `after`'s
-    /// log — see the comment above the call site for why that, not a count, is the right
-    /// question for a rebase.
+    /// Whether the rebase finished, decided by identity: is `after`'s tip still the exact
+    /// commit git recorded as the branch's tip before the rebase began (orig-head)? An abort
+    /// restores that commit precisely, and no completion path — continue, skip, or an
+    /// auto-drop of everything already upstream — can ever reproduce it, because a rebase
+    /// that would have left the tip unchanged would not have paused to begin with. So
+    /// "completed" is simply "orig-head is known, and after's tip is not it".
+    ///
+    /// When orig-head could not be read (it is not documented git API), this falls back to
+    /// asking whether the commit `before` was sitting on mid-rebase is still reachable in
+    /// `after`'s log. That fallback has a known hole: it is a reachability question, not an
+    /// identity one, so it answers "completed" for an abort whenever the rebase base already
+    /// happens to be an ancestor of the branch — for instance because the branch had
+    /// previously merged that base in, which is exactly what "bring this branch up to date"
+    /// runs into on a branch that was updated this way before. Kept only because "orig-head
+    /// unreadable" is itself already the rare case.
     ///
     /// `before.RecentCommits` cannot be empty against a real repository — a rebase cannot be
     /// running without at least one commit to be running on — but nothing stops a caller from
     /// constructing that state anyway, and guessing at a hash that was never observed would be
     /// exactly the kind of claim this class exists to never make. So an empty `before` falls
-    /// back to whether anything at all showed up in `after`: nothing sought, nothing to find,
-    /// but a commit having appeared from nowhere is still evidence something completed. An
-    /// empty `after` answers itself either way — an empty haystack contains nothing.
-    ///
-    /// RecentCommits is capped at <see cref="Repo.RepoStateReader.RecentCommitLimit"/>. A
-    /// single --continue replays exactly one commit, and a single --skip discards the one it
-    /// stops on, so the sought commit shifts by one position in the window per action call —
-    /// nowhere near the cap. It is only git's own already-upstream auto-drop, chaining through
-    /// dozens of commits in one call, that could push it out of a 50-commit window and read a
-    /// genuine completion as an abandonment; that is accepted here as a known, exceedingly
-    /// rare limitation rather than solved, since Narrator has only these two snapshots to
-    /// reason from and no git call of its own to widen the search.
+    /// back further, to whether anything at all showed up in `after`: nothing sought, nothing
+    /// to find, but a commit having appeared from nowhere is still evidence something
+    /// completed. An empty `after` answers itself either way — an empty haystack contains
+    /// nothing.
     /// </summary>
     private static bool RebaseCompleted(RepoState before, RepoState after)
     {
+        var origHead = before.Operation?.Rebase?.OrigHead;
+        if (origHead is not null)
+        {
+            var afterTip = after.RecentCommits.FirstOrDefault()?.Hash;
+            return !string.Equals(afterTip, origHead, StringComparison.Ordinal);
+        }
+
         var sought = before.RecentCommits.Count > 0 ? before.RecentCommits[0].Hash : null;
 
         return sought is null

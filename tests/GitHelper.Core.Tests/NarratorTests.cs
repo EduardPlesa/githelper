@@ -154,8 +154,9 @@ public class NarratorTests
         Assert.DoesNotContain("merge", narration, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static OperationState Rebasing(int step = 1, int total = 3, string? stoppedAt = "my work")
-        => new(OperationKind.Rebase, "main", new RebaseProgress(step, total, stoppedAt));
+    private static OperationState Rebasing(
+        int step = 1, int total = 3, string? stoppedAt = "my work", string? origHead = null)
+        => new(OperationKind.Rebase, "main", new RebaseProgress(step, total, stoppedAt, origHead));
 
     [Fact]
     public void Describe_ReportsARebaseThatStoppedAndNamesTheCommit()
@@ -184,7 +185,14 @@ public class NarratorTests
     [Fact]
     public void Describe_ReportsARebaseThatFinished()
     {
-        var before = State(operation: Rebasing(), changes: Conflicted("a.txt"));
+        // `before` has a commit sitting where HEAD was mid-rebase, distinct from OrigHead and
+        // from anything in `after` — so this only passes if the OrigHead identity check is the
+        // thing being exercised, not the "sought is null" fallback (which a before with no
+        // commits at all would trigger regardless of whether the real comparison exists).
+        var before = State(
+            commits: new[] { Commit("bbb", "commit HEAD was on mid-rebase") },
+            operation: Rebasing(origHead: "orig0000"),
+            changes: Conflicted("a.txt"));
         var after = State(commits: new[] { Commit("aaa", "my work") });
 
         var narration = Narrator.Describe(before, after);
@@ -197,7 +205,9 @@ public class NarratorTests
     public void Describe_ReportsARebaseThatFinishedWithoutNamingABaseItCannotName()
     {
         var before = State(
-            operation: new OperationState(OperationKind.Rebase, null, new RebaseProgress(1, 1, "my work")),
+            commits: new[] { Commit("bbb", "commit HEAD was on mid-rebase") },
+            operation: new OperationState(
+                OperationKind.Rebase, null, new RebaseProgress(1, 1, "my work", "orig0000")),
             changes: Conflicted("a.txt"));
         var after = State(commits: new[] { Commit("aaa", "my work") });
 
@@ -209,9 +219,18 @@ public class NarratorTests
     [Fact]
     public void Describe_ReportsARebaseThatWasAbandoned()
     {
-        var before = State(operation: Rebasing(), changes: Conflicted("a.txt"));
+        // `after`'s tip is exactly OrigHead — the same commit `before` also carries in its own
+        // log — modelling a real abort restoring the branch to precisely where it started.
+        // With no commits in `before` at all, this test would pass even if the real OrigHead
+        // comparison were replaced by "anything showed up in after", which is exactly the
+        // vacuous shape this guards against.
+        var origHead = Commit("bbb", "commit that was HEAD before the rebase started");
+        var before = State(
+            commits: new[] { origHead },
+            operation: Rebasing(origHead: origHead.Hash),
+            changes: Conflicted("a.txt"));
 
-        var narration = Narrator.Describe(before, State());
+        var narration = Narrator.Describe(before, State(commits: new[] { origHead }));
 
         // The rebase-specific sentence, not merely "abandoned" — which the merge wording
         // also contains, so asserting on it alone discriminates nothing.

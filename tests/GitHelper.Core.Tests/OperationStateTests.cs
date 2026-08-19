@@ -17,7 +17,7 @@ public class OperationStateTests
     public void ARebaseCarriesItsPlaceInTheSequence()
     {
         var rebase = new OperationState(
-            OperationKind.Rebase, "main", new RebaseProgress(3, 7, "fix login bug"));
+            OperationKind.Rebase, "main", new RebaseProgress(3, 7, "fix login bug", "orig0000"));
 
         Assert.Equal(3, rebase.Rebase!.Step);
         Assert.Equal(7, rebase.Rebase.Total);

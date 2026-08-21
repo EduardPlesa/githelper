@@ -223,6 +223,36 @@ public class DiffViewModelTests
         Assert.Contains("git diff -- a.txt", viewModel.Message);
     }
 
+    /// <summary>
+    /// A plain `git diff` shows the unstaged side. Offering it for a truncated staged diff
+    /// sends the reader to a different file state entirely — and this app's whole premise is
+    /// that a command it prints is one you can paste into a terminal.
+    /// </summary>
+    [Fact]
+    public async Task NamesTheStagedCommandWhenAStagedDiffIsCutOff()
+    {
+        var source = new FakeSource { Next = () => TextDiff() with { Truncated = true } };
+        var viewModel = new DiffViewModel(source, TestContent.Library);
+
+        await viewModel.OpenAsync("repo", "a.txt", DiffSide.Staged, renamedFrom: null, default);
+
+        Assert.Contains("git diff --cached -- a.txt", viewModel.Message);
+    }
+
+    /// <summary>
+    /// And for a file git has never seen, a plain `git diff` prints nothing whatsoever.
+    /// </summary>
+    [Fact]
+    public async Task NamesTheNoIndexCommandWhenAnUntrackedDiffIsCutOff()
+    {
+        var source = new FakeSource { Next = () => TextDiff() with { Truncated = true } };
+        var viewModel = new DiffViewModel(source, TestContent.Library);
+
+        await viewModel.OpenAsync("repo", "new.txt", DiffSide.Untracked, renamedFrom: null, default);
+
+        Assert.Contains("git diff --no-index -- /dev/null new.txt", viewModel.Message);
+    }
+
     [Fact]
     public async Task ClosingRaisesTheCallback()
     {

@@ -136,7 +136,7 @@ public sealed partial class DiffViewModel(IDiffSource source, ContentLibrary con
         if (diff.Truncated)
             return $"This file is too long to show in full. Showing the first "
                 + $"{GitHelper.Core.Parsing.DiffParser.MaxLines} lines — to see all of it, run "
-                + $"git diff -- {Path} in a terminal.";
+                + $"{RestOfTheDiffCommand()} in a terminal.";
 
         if (diff.Kind != DiffKind.Empty) return string.Empty;
 
@@ -152,4 +152,21 @@ public sealed partial class DiffViewModel(IDiffSource source, ContentLibrary con
             _ => "There are no unstaged changes in this file any more.",
         };
     }
+
+    /// <summary>
+    /// The command that shows the whole of what this surface cut off — one per side, because
+    /// they are three different comparisons. A plain `git diff` shows the unstaged side, so
+    /// offering it for a staged diff would send the user to a different file state, and for
+    /// an untracked file it prints nothing at all. This app's premise is that a command it
+    /// shows is a command you can paste.
+    ///
+    /// Deliberately not DiffReader's exact argv: --no-color and --no-ext-diff are there to
+    /// protect the parser, and a person typing this in a terminal wants neither.
+    /// </summary>
+    private string RestOfTheDiffCommand() => _side switch
+    {
+        DiffSide.Staged => $"git diff --cached -- {Path}",
+        DiffSide.Untracked => $"git diff --no-index -- /dev/null {Path}",
+        _ => $"git diff -- {Path}",
+    };
 }

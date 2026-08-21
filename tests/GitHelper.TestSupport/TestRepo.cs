@@ -171,6 +171,33 @@ public sealed class TestRepo : IDisposable
         await GitAsync("rebase", baseBranch);
     }
 
+    /// <summary>Commits a file, then edits it again without staging: one unstaged change.</summary>
+    public async Task<string> AddUnstagedChangeAsync(string relativePath = "tracked.txt")
+    {
+        WriteFile(relativePath, "one\ntwo\nthree\n");
+        await GitAsync("add", "-A");
+        await GitAsync("commit", "-q", "-m", "add " + relativePath);
+
+        WriteFile(relativePath, "one\nTWO\nthree\n");
+        return relativePath;
+    }
+
+    /// <summary>
+    /// Leaves a file staged AND further modified, so the same path has two different diffs.
+    /// This is the case the two-rows-one-file UI depends on.
+    /// </summary>
+    public async Task<string> AddStagedAndFurtherModifiedAsync(string relativePath = "both.txt")
+    {
+        WriteFile(relativePath, "one\ntwo\n");
+        await GitAsync("add", "-A");
+        await GitAsync("commit", "-q", "-m", "add " + relativePath);
+
+        WriteFile(relativePath, "one\nSTAGED\n");
+        await GitAsync("add", relativePath);
+        WriteFile(relativePath, "one\nWORKTREE\n");
+        return relativePath;
+    }
+
     public void Dispose()
     {
         try

@@ -23,6 +23,20 @@ public class DiffViewTests
             => Task.FromResult(diff);
     }
 
+    /// <summary>
+    /// The code-behind renders the intro on DataContextChanged, and a view can be built
+    /// before a viewmodel is attached to it. Nothing there may throw on a null DataContext.
+    /// </summary>
+    [AvaloniaFact]
+    public void RendersWithNoViewModelAtAll()
+    {
+        var window = new Window { Content = new DiffView() };
+        window.Show();
+
+        Assert.True(window.IsVisible);
+        window.Close();
+    }
+
     /// <summary>One line of each kind that carries content, in a single hunk.</summary>
     private static FileDiff OneOfEachKind() => new(
         "a.txt",

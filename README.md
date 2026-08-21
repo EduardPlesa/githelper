@@ -75,6 +75,7 @@ when git did something unexpected.
 - **A command log that teaches the CLI** — every `git` invocation the app makes, with exit codes, in pasteable form. Multi-word arguments come out correctly quoted.
 - **Plain-English error translation** — with the raw git output always one click away, never hidden.
 - **Live refresh** — edit a file outside the app and the Changes tab updates within about a second, debounced so a burst of writes causes one refresh, not fifty.
+- **A diff viewer** — open any changed file from the Changes tab to read the real unified diff, not a paraphrase of it. The jargon in it (`diff`, `hunk`, the staging area) is underlined rather than removed, because it's the format you'll meet again in every git tool once you leave this one.
 - **A glossary built into the prose** — hover any underlined term for its definition.
 - **Recent projects, light/dark/system theme**, and your per-action preferences, all persisted.
 - **Identity setup** — if `user.name` / `user.email` aren't configured, the app offers to set them, rather than letting your first commit fail with a wall of git configuration advice.
@@ -273,11 +274,15 @@ are *declined* rather than deferred:
   so and offers the way out. Rebase is deliberately narrow — it will not rewrite a branch that is
   already on a server, because that needs a force-push this app does not do. **Cherry-pick** is
   still deferred.
-- **Guided conflict resolution** — still deferred. A stopped merge now tells you which files
-  need attention and takes "I fixed this one" per file, but the fixing itself happens in your
-  own editor. Doing it in-app is the scariest part of git for a beginner and the most complex UI
-  in the product; it waits on the diff viewer below and deserves its own design pass.
-- **A diff viewer** — the Changes tab lists *what* changed, not the contents of the change.
+- **Guided conflict resolution** — still deferred, and next. A stopped merge already tells you
+  which files need attention and takes "I fixed this one" per file, but the fixing itself
+  happens in your own editor. It sat behind operation state and the diff viewer below on
+  purpose: building it before either existed would have meant inventing both badly, inside the
+  most complex screen in the product. Both have now shipped.
+- ~~A diff viewer.~~ Shipped — see [Features](#features) above: any changed file's real unified
+  diff, jargon underlined rather than hidden. Diffs for conflicted files are still deferred;
+  git's combined diff format for unmerged paths is a second grammar the parser doesn't read,
+  and that surface belongs to guided conflict resolution instead.
 - ~~Remote management.~~ Connecting to and disconnecting from GitHub shipped — see
   [Publishing to GitHub](#publishing-to-github). A view for multiple or renamed remotes is
   still deferred.

@@ -72,6 +72,43 @@ public static partial class ContentParser
                 : Array.Empty<ContentBlock>());
     }
 
+    /// <summary>
+    /// Parses a reading file: the same frontmatter, but one '## what' section and no danger.
+    /// </summary>
+    public static ReadingDocument ParseReading(string fileText, string sourceName)
+    {
+        var (frontmatterText, body) = SplitFrontmatter(fileText, sourceName);
+
+        Frontmatter matter;
+        try
+        {
+            matter = Yaml.Deserialize<Frontmatter>(frontmatterText) ?? new Frontmatter();
+        }
+        catch (Exception ex)
+        {
+            throw new ContentException($"{sourceName}: frontmatter is not valid YAML. {ex.Message}");
+        }
+
+        if (string.IsNullOrWhiteSpace(matter.Id))
+            throw new ContentException($"{sourceName}: frontmatter is missing 'id'.");
+        if (string.IsNullOrWhiteSpace(matter.Title))
+            throw new ContentException($"{sourceName}: frontmatter is missing 'title'.");
+
+        var sections = SplitSections(body, sourceName);
+        if (!sections.TryGetValue("what", out var what))
+            throw new ContentException($"{sourceName}: missing required section '## what'.");
+
+        var blocks = ParseBlocks(what);
+        if (blocks.Count == 0)
+            throw new ContentException($"{sourceName}: '## what' section is empty.");
+
+        return new ReadingDocument(
+            Id: matter.Id!,
+            Title: matter.Title!,
+            Terms: matter.Terms ?? new List<string>(),
+            What: blocks);
+    }
+
     private static (string Frontmatter, string Body) SplitFrontmatter(string fileText, string sourceName)
     {
         var normalized = fileText.Replace("\r\n", "\n");

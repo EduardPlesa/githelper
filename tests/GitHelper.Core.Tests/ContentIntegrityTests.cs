@@ -164,10 +164,25 @@ public class ContentIntegrityTests
     {
         var referenced = AllDocuments()
             .SelectMany(d => d.Terms.Concat(AllSpans(d).OfType<TermSpan>().Select(s => s.TermId)))
+            .Concat(Library.Reading.Values.SelectMany(d =>
+                d.Terms.Concat(Spans(d.What).OfType<TermSpan>().Select(s => s.TermId))))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var unused = Library.Terms.Keys.Where(id => !referenced.Contains(id)).ToList();
 
         Assert.Empty(unused);
+    }
+
+    [Fact]
+    public void ReadingDocumentsAreLoadedAndTheirTermsResolve()
+    {
+        Assert.NotEmpty(Library.Reading);
+
+        var unresolved = Library.Reading.Values
+            .SelectMany(d => d.Terms.Select(t => (Document: d.Id, Term: t)))
+            .Where(x => !Library.Terms.ContainsKey(x.Term))
+            .ToList();
+
+        Assert.Empty(unresolved);
     }
 }

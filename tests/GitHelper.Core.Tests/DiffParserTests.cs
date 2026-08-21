@@ -195,4 +195,85 @@ public class DiffParserTests
         Assert.True(diff.Truncated);
         Assert.Equal(DiffParser.MaxLines, diff.Hunks.Sum(h => h.Lines.Count));
     }
+
+    /// <summary>
+    /// Exactly at the cap is not over it. Git's output always ends with a newline, so
+    /// Split('\n') hands the parser a trailing empty element; checking the cap before
+    /// deciding whether a line is worth emitting made that empty element trip it, and the
+    /// surface then offered a terminal command for a diff it had shown in full.
+    /// </summary>
+    [Fact]
+    public void DoesNotCallADiffOfExactlyTheLineCapTruncated()
+    {
+        var body = string.Concat(Enumerable.Repeat("+line\n", DiffParser.MaxLines));
+        var text =
+            "diff --git a/a.txt b/a.txt\n" +
+            "--- a/a.txt\n" +
+            "+++ b/a.txt\n" +
+            $"@@ -0,0 +1,{DiffParser.MaxLines} @@\n" +
+            body;
+
+        var diff = DiffParser.Parse("a.txt", text);
+
+        Assert.False(diff.Truncated);
+        Assert.Equal(DiffParser.MaxLines, diff.Hunks.Sum(h => h.Lines.Count));
+    }
+
+    /// <summary>
+    /// Parse is public and documented as reading text nobody controls. A lone backslash is
+    /// not something DiffReader can produce, but it must not take the app down either.
+    /// </summary>
+    [Fact]
+    public void SurvivesANoNewlineMarkerWithNothingAfterIt()
+    {
+        var text =
+            "diff --git a/a.txt b/a.txt\n" +
+            "--- a/a.txt\n" +
+            "+++ b/a.txt\n" +
+            "@@ -1 +1 @@\n" +
+            "-old\n" +
+            "+new\n" +
+            "\\\n";
+
+        var last = DiffParser.Parse("a.txt", text).Hunks.Single().Lines.Last();
+
+        Assert.Equal(DiffLineKind.NoNewlineMarker, last.Kind);
+        Assert.Equal(string.Empty, last.Text);
+    }
+
+    /// <summary>
+    /// Text is the line's own content, with no marker in it — that is what v3's guided
+    /// conflict resolution will address and write back. The marker git prints for the kind
+    /// is carried separately, because the app's glossary promises the user a plus and a
+    /// minus and the view has to be able to show them.
+    /// </summary>
+    [Fact]
+    public void KeepsTheLineContentCleanAndCarriesGitsMarkerBesideIt()
+    {
+        var lines = DiffParser.Parse("a.txt", ModifiedFile).Hunks.Single().Lines;
+
+        Assert.Equal(
+            new[] { "one", "two", "TWO", "two and a half", "three" },
+            lines.Select(l => l.Text));
+
+        Assert.Equal(new[] { " ", "-", "+", "+", " " }, lines.Select(l => l.Marker));
+    }
+
+    [Fact]
+    public void MarksTheNoNewlineLineWithGitsOwnBackslash()
+    {
+        var text =
+            "diff --git a/a.txt b/a.txt\n" +
+            "--- a/a.txt\n" +
+            "+++ b/a.txt\n" +
+            "@@ -1 +1 @@\n" +
+            "-old\n" +
+            "+new\n" +
+            "\\ No newline at end of file\n";
+
+        var last = DiffParser.Parse("a.txt", text).Hunks.Single().Lines.Last();
+
+        Assert.Equal("\\", last.Marker);
+        Assert.Equal("No newline at end of file", last.Text);
+    }
 }

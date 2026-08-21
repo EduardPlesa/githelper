@@ -64,12 +64,6 @@ public static partial class DiffParser
             // '--- a/x', '+++ b/x', mode and rename lines. None of it is a changed line.
             if (header is null) continue;
 
-            if (emitted == MaxLines)
-            {
-                truncated = true;
-                break;
-            }
-
             if (line.Length == 0) continue;
 
             DiffLine parsed;
@@ -85,11 +79,27 @@ public static partial class DiffParser
                     parsed = new DiffLine(DiffLineKind.Removed, line[1..], oldNumber++, null);
                     break;
                 case '\\':
-                    parsed = new DiffLine(DiffLineKind.NoNewlineMarker, line[2..], null, null);
+                    // Git writes "\ No newline at end of file", so the text starts at 2. Guarded
+                    // because Parse is public and reads text nobody controls: a bare backslash
+                    // must come out empty rather than throw.
+                    parsed = new DiffLine(
+                        DiffLineKind.NoNewlineMarker,
+                        line.Length > 2 ? line[2..] : string.Empty,
+                        null,
+                        null);
                     break;
                 default:
                     // A line git's format does not define. Skipped rather than guessed at.
                     continue;
+            }
+
+            // Checked here rather than at the top of the loop: git's output ends with a
+            // newline, so Split('\n') yields a trailing empty element, and testing the cap
+            // before that element was skipped called a diff of exactly MaxLines truncated.
+            if (emitted == MaxLines)
+            {
+                truncated = true;
+                break;
             }
 
             current.Add(parsed);

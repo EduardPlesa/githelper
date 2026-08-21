@@ -46,7 +46,26 @@ public sealed record DiffLine(
     DiffLineKind Kind,
     string Text,
     int? OldLineNumber,
-    int? NewLineNumber);
+    int? NewLineNumber)
+{
+    /// <summary>
+    /// The character git prints in column one for a line of this kind. Domain data rather
+    /// than styling: the glossary this app ships tells the user that added lines "are marked
+    /// with a plus, lines that were taken away with a minus", so the marker has to reach the
+    /// screen — and colour on its own is no answer to a colour-blind reader.
+    ///
+    /// Deliberately not folded back into <see cref="Text"/>. Text is the line's own content,
+    /// which v3's guided conflict resolution has to address and write back; a Text that
+    /// silently carried a marker character would corrupt the file it wrote.
+    /// </summary>
+    public string Marker => Kind switch
+    {
+        DiffLineKind.Added => "+",
+        DiffLineKind.Removed => "-",
+        DiffLineKind.NoNewlineMarker => "\\",
+        _ => " ",
+    };
+}
 
 public enum DiffLineKind
 {

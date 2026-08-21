@@ -55,6 +55,7 @@ public class UnreadableRepositoryTests
             explain,
             new CommandLogViewModel(new CommandLog(), dispatcher),
             new ChangesViewModel(explain),
+            new DiffViewModel(new GitDiffSource(new DiffReader(runner))),
             new HistoryViewModel(explain),
             new BranchesViewModel(explain),
             new OperationBannerViewModel(explain),

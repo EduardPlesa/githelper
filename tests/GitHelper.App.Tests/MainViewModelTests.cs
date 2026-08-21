@@ -37,6 +37,7 @@ public class MainViewModelTests
             explain,
             new CommandLogViewModel(log, dispatcher),
             new ChangesViewModel(explain),
+            new DiffViewModel(new GitDiffSource(new DiffReader(runner))),
             new HistoryViewModel(explain),
             new BranchesViewModel(explain),
             new OperationBannerViewModel(explain),
@@ -338,5 +339,67 @@ public class MainViewModelTests
         await main.RefreshAsync();
 
         Assert.False(main.OperationBanner.IsVisible);
+    }
+
+    [Fact]
+    public async Task ShowsTheDiffInPlaceOfTheCurrentTabWhenARowAsksForIt()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var path = await repo.AddUnstagedChangeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+
+        await viewModel.Changes.Unstaged.Single(r => r.Path == path).ViewChangesCommand.ExecuteAsync(null);
+
+        Assert.IsType<DiffViewModel>(viewModel.CurrentTab);
+        Assert.Equal(path, ((DiffViewModel)viewModel.CurrentTab).Path);
+    }
+
+    [Fact]
+    public async Task GoingBackRestoresTheTab()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var path = await repo.AddUnstagedChangeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+        await viewModel.Changes.Unstaged.Single(r => r.Path == path).ViewChangesCommand.ExecuteAsync(null);
+
+        ((DiffViewModel)viewModel.CurrentTab).CloseCommand.Execute(null);
+
+        Assert.Same(viewModel.Changes, viewModel.CurrentTab);
+    }
+
+    /// <summary>
+    /// The diff is about one file in one tab. Leaving that tab is leaving the question.
+    /// </summary>
+    [Fact]
+    public async Task LeavingTheChangesTabClosesTheDiff()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var path = await repo.AddUnstagedChangeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+        await viewModel.Changes.Unstaged.Single(r => r.Path == path).ViewChangesCommand.ExecuteAsync(null);
+
+        viewModel.SelectedTab = MainTab.History;
+
+        Assert.Same(viewModel.History, viewModel.CurrentTab);
+
+        viewModel.SelectedTab = MainTab.Changes;
+
+        Assert.Same(viewModel.Changes, viewModel.CurrentTab);
+    }
+
+    /// <summary>Conflicted files need combined diff format, which is v3's, not this surface's.</summary>
+    [Fact]
+    public async Task OffersNoDiffForAConflictedFile()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+
+        Assert.NotEmpty(viewModel.Changes.Conflicted);
+        Assert.All(viewModel.Changes.Conflicted, row => Assert.False(row.CanViewChanges));
     }
 }

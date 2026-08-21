@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using GitHelper.App.Infrastructure;
 using GitHelper.Core.Actions;
 using GitHelper.Core.Model;
+using GitHelper.Core.Repo;
 using GitHelper.Core.Setup;
 
 namespace GitHelper.App.ViewModels;
@@ -52,6 +53,13 @@ public sealed partial class ChangesViewModel : ViewModelBase
     public ObservableCollection<FileChangeRowViewModel> Conflicted { get; } = new();
 
     public ObservableCollection<StashRowViewModel> Stashes { get; } = new();
+
+    /// <summary>
+    /// Raised when a row asks to see its changes. This viewmodel does not own the diff
+    /// surface and does not know what showing it means — the shell decides, the same way it
+    /// already does for opening a repository.
+    /// </summary>
+    public Func<string, DiffSide, string?, CancellationToken, Task>? DiffRequestedAsync { get; set; }
 
     [ObservableProperty] private string _commitMessage = string.Empty;
     [ObservableProperty] private bool _hasStagedChanges;
@@ -106,13 +114,15 @@ public sealed partial class ChangesViewModel : ViewModelBase
 
         Staged.Clear();
         foreach (var change in state.Staged)
-            Staged.Add(new FileChangeRowViewModel(change, staged: true, InvokeWithPathAsync));
+            Staged.Add(new FileChangeRowViewModel(
+                change, staged: true, InvokeWithPathAsync, ViewChangesAsync));
 
         Unstaged.Clear();
         // RepoState.Unstaged excludes untracked files by design; the view shows one
         // combined "not staged" list.
         foreach (var change in state.Unstaged.Concat(state.Untracked))
-            Unstaged.Add(new FileChangeRowViewModel(change, staged: false, InvokeWithPathAsync));
+            Unstaged.Add(new FileChangeRowViewModel(
+                change, staged: false, InvokeWithPathAsync, ViewChangesAsync));
 
         Conflicted.Clear();
         foreach (var change in state.Unmerged)
@@ -201,6 +211,11 @@ public sealed partial class ChangesViewModel : ViewModelBase
     }
 
     private Task InvokeWithPathAsync(string actionId, string path) => InvokeAsync(actionId, path);
+
+    private Task ViewChangesAsync(string path, DiffSide side, string? renamedFrom)
+        => DiffRequestedAsync is null
+            ? Task.CompletedTask
+            : DiffRequestedAsync(path, side, renamedFrom, CancellationToken.None);
 
     /// <summary>
     /// Previews, then runs immediately unless the action needs an inline Confirm. Every

@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:GitHelper.App.ViewModels"
              xmlns:model="using:GitHelper.Core.Model"
+             xmlns:rendering="using:GitHelper.App.Rendering"
              x:DataType="vm:DiffViewModel"
              x:Class="GitHelper.App.Views.DiffView">
 
@@ -39,7 +40,15 @@
               <ItemsControl ItemsSource="{Binding Lines}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="model:DiffLine">
-                    <Grid ColumnDefinitions="40,40,*">
+                    <!-- The number columns are 56 wide, not 40: MaxLines bounds how many
+                         lines are shown, never how large the numbers are, and a two-line
+                         hunk at line 150000 needs six digits.
+
+                         The tint says added or removed at a glance; the marker column says
+                         it in a way that survives being colour-blind, and is the plus and
+                         minus the glossary promises. -->
+                    <Grid Name="LineRow" ColumnDefinitions="56,56,14,*"
+                          Background="{Binding Kind, Converter={x:Static rendering:DiffLineBackgroundConverter.Instance}}">
                       <TextBlock Text="{Binding OldLineNumber}" Opacity="0.4" FontSize="12"
                                  FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
                                  TextAlignment="Right" Margin="0,0,6,0" />
@@ -47,7 +56,10 @@
                                  FontSize="12"
                                  FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
                                  TextAlignment="Right" Margin="0,0,6,0" />
-                      <TextBlock Grid.Column="2" Text="{Binding Text}"
+                      <TextBlock Grid.Column="2" Name="LineMarker" Text="{Binding Marker}"
+                                 FontWeight="Bold" TextAlignment="Center"
+                                 FontFamily="Consolas, Cascadia Mono, Courier New, monospace" />
+                      <TextBlock Grid.Column="3" Text="{Binding Text}"
                                  FontFamily="Consolas, Cascadia Mono, Courier New, monospace" />
                     </Grid>
                   </DataTemplate>

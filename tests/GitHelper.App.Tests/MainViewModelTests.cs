@@ -420,4 +420,26 @@ public class MainViewModelTests
 
         Assert.Null(viewModel.OpenDiff);
     }
+
+    /// <summary>
+    /// A diff read once and left alone would quietly disagree with the file list beside it.
+    /// The file's status does not change when it is edited twice, so nothing but re-reading
+    /// catches this.
+    /// </summary>
+    [Fact]
+    public async Task RefreshingReReadsAnOpenDiff()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var path = await repo.AddUnstagedChangeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+        await viewModel.Changes.Unstaged.Single(r => r.Path == path).ViewChangesCommand.ExecuteAsync(null);
+
+        repo.WriteFile(path, "one\nEDITED AGAIN\nthree\n");
+        await viewModel.RefreshAsync();
+
+        var lines = viewModel.Diff.Hunks.SelectMany(h => h.Lines).ToList();
+        Assert.Contains(lines, l => l.Text == "EDITED AGAIN");
+        Assert.DoesNotContain(lines, l => l.Text == "TWO");
+    }
 }

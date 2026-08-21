@@ -225,6 +225,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             History.Update(state);
             Branches.Update(state);
             OperationBanner.Update(state);
+            // Inside the refresh gate and on the same token: part of the refresh, not a race
+            // beside it. Only while a diff is open, so a closed surface costs nothing.
+            if (OpenDiff is not null) await OpenDiff.RefreshAsync(ct);
         }
         finally
         {

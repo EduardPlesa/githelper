@@ -51,9 +51,21 @@ public sealed class DiffReader(IGitRunner runner)
 
     private static string[] ArgsFor(string path, DiffSide side, string? originalPath)
     {
+        // -c diff.suppressBlankEmpty=false for the same reason as --no-ext-diff: the user's
+        // own configuration must not change the shape of the text this parser reads. With
+        // that setting on, git prints a blank context line as a truly empty line instead of
+        // a single space; the parser skips empty lines, and every line number after it in
+        // the hunk would come out one too low. Unlike GitRunner's core.quotepath, this stays
+        // in the visible argv: it changes the diff, so a user pasting the logged command
+        // should get the same diff back.
+        //
         // --no-color because the parser reads text, not ANSI escapes. --no-ext-diff because a
         // configured difftool would return a format this parser has never seen.
-        var args = new List<string> { "diff", "--no-color", "--no-ext-diff" };
+        var args = new List<string>
+        {
+            "-c", "diff.suppressBlankEmpty=false",
+            "diff", "--no-color", "--no-ext-diff",
+        };
 
         switch (side)
         {

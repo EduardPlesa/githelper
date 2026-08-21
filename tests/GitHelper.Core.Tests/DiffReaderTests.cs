@@ -108,6 +108,40 @@ public class DiffReaderTests
         Assert.Equal(new[] { "alpha", "beta" }, hunk.Lines.Select(l => l.Text));
     }
 
+    /// <summary>
+    /// With diff.suppressBlankEmpty set, git prints a blank context line as a truly empty
+    /// line rather than a single space. The parser skips empty lines — it has to, since
+    /// Split('\n') manufactures one at the end — so every line number after a blank line in
+    /// the hunk came out one too low. Silently wrong line numbers are the one output this
+    /// surface must never produce, so the read pins the setting the way --no-ext-diff already
+    /// pins the difftool.
+    /// </summary>
+    [Fact]
+    public async Task KeepsLineNumbersRightWhenTheUsersConfigSuppressesBlankContextLines()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.GitAsync("config", "diff.suppressBlankEmpty", "true");
+        repo.WriteFile("blank.txt", "one\n\nthree\nfour\n");
+        await repo.GitAsync("add", "-A");
+        await repo.GitAsync("commit", "-q", "-m", "add blank.txt");
+        repo.WriteFile("blank.txt", "one\n\nthree\nFOUR\n");
+
+        var lines = (await Reader().ReadAsync(repo.Path, "blank.txt", DiffSide.Unstaged))
+            .Hunks.Single().Lines;
+
+        var removed = lines.Single(l => l.Kind == DiffLineKind.Removed);
+        Assert.Equal("four", removed.Text);
+        Assert.Equal(4, removed.OldLineNumber);
+
+        var added = lines.Single(l => l.Kind == DiffLineKind.Added);
+        Assert.Equal("FOUR", added.Text);
+        Assert.Equal(4, added.NewLineNumber);
+
+        // The blank line itself is context and is still there, so the rows on screen line up
+        // with the rows in the file.
+        Assert.Contains(lines, l => l.Kind == DiffLineKind.Context && l.Text.Length == 0);
+    }
+
     [Fact]
     public async Task ReportsAFileWithNoChangesAsEmpty()
     {

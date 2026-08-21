@@ -27,9 +27,19 @@ public sealed class FileChangeRowViewModel : ViewModelBase
         DiscardCommand = new AsyncRelayCommand(() => invokeAction("discard-file", change.Path));
         MarkResolvedCommand = new AsyncRelayCommand(() => invokeAction("mark-resolved", change.Path));
 
+        // Two rows have no diff to show, and both are hidden rather than left to fail.
+        //
         // A conflicted file's diff is git's combined format, a grammar this app does not read
         // yet. That surface belongs to guided conflict resolution, not here.
-        CanViewChanges = viewChanges is not null && !change.IsUnmerged;
+        //
+        // A path ending in '/' is a wholly untracked folder: git status runs with the default
+        // -u normal, which collapses one into a single entry. A folder has no single diff —
+        // `diff --no-index -- /dev/null newdir/` fails outright — and offering a button whose
+        // only outcome is "the changes in this file could not be read" is worse than offering
+        // none, especially since making a folder of new files is beginner's work.
+        CanViewChanges = viewChanges is not null
+            && !change.IsUnmerged
+            && !change.Path.EndsWith('/');
 
         var side = staged
             ? DiffSide.Staged

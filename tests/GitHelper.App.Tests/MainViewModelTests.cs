@@ -404,6 +404,30 @@ public class MainViewModelTests
     }
 
     /// <summary>
+    /// git status runs with the default -u normal, which collapses a wholly untracked folder
+    /// into one row whose path ends in '/'. A folder has no single diff — the read fails with
+    /// "Could not access 'newdir/nul'" — so the button must not be there to press. Creating a
+    /// folder of new files is one of the first things a beginner does.
+    /// </summary>
+    [Fact]
+    public async Task OffersNoDiffForAnUntrackedFolderButStillDoesForALooseFile()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("newdir/a.txt", "x\n");
+        repo.WriteFile("newdir/b.txt", "y\n");
+        repo.WriteFile("loose.txt", "z\n");
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+
+        var folder = viewModel.Changes.Unstaged.Single(r => r.Path.EndsWith('/'));
+        Assert.Equal("newdir/", folder.Path);
+        Assert.False(folder.CanViewChanges);
+        Assert.False(folder.ViewChangesCommand.CanExecute(null));
+
+        Assert.True(viewModel.Changes.Unstaged.Single(r => r.Path == "loose.txt").CanViewChanges);
+    }
+
+    /// <summary>
     /// An open diff belongs to the repository it was read from. Closing that repository has
     /// to take it with it, or the next project opened shows the last one's file.
     /// </summary>

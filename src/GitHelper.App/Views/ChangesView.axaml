@@ -45,12 +45,16 @@
           <ItemsControl Name="StagedHost" ItemsSource="{Binding Staged}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:FileChangeRowViewModel">
-                <Grid ColumnDefinitions="*,Auto" Margin="0,3">
+                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
                   <StackPanel>
                     <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
                     <TextBlock Text="{Binding StatusLabel}" Opacity="0.6" FontSize="12" />
                   </StackPanel>
-                  <Button Grid.Column="1" Content="Unstage" Command="{Binding UnstageCommand}" />
+                  <Button Grid.Column="1" Content="View changes"
+                          Command="{Binding ViewChangesCommand}"
+                          IsVisible="{Binding CanViewChanges}" />
+                  <Button Grid.Column="2" Content="Unstage" Command="{Binding UnstageCommand}"
+                          Margin="6,0,0,0" />
                 </Grid>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
@@ -66,13 +70,17 @@
           <ItemsControl Name="UnstagedHost" ItemsSource="{Binding Unstaged}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:FileChangeRowViewModel">
-                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,3">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,3">
                   <StackPanel>
                     <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
                     <TextBlock Text="{Binding StatusLabel}" Opacity="0.6" FontSize="12" />
                   </StackPanel>
-                  <Button Grid.Column="1" Content="Stage" Command="{Binding StageCommand}" />
-                  <Button Grid.Column="2" Content="Discard" Command="{Binding DiscardCommand}"
+                  <Button Grid.Column="1" Content="View changes"
+                          Command="{Binding ViewChangesCommand}"
+                          IsVisible="{Binding CanViewChanges}" />
+                  <Button Grid.Column="2" Content="Stage" Command="{Binding StageCommand}"
+                          Margin="6,0,0,0" />
+                  <Button Grid.Column="3" Content="Discard" Command="{Binding DiscardCommand}"
                           Margin="6,0,0,0" />
                 </Grid>
               </DataTemplate>

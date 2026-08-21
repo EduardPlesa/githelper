@@ -1,0 +1,62 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GitHelper.App.ViewModels"
+             xmlns:model="using:GitHelper.Core.Model"
+             x:DataType="vm:DiffViewModel"
+             x:Class="GitHelper.App.Views.DiffView">
+
+  <Grid RowDefinitions="Auto,Auto,*" Margin="12">
+
+    <StackPanel Grid.Row="0" Spacing="2">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding Path}" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+        <Button Grid.Column="1" Content="Back to changes" Command="{Binding CloseCommand}" />
+      </Grid>
+      <TextBlock Text="{Binding SideLabel}" Opacity="0.6" FontSize="12" />
+    </StackPanel>
+
+    <TextBlock Grid.Row="1" Text="{Binding Message}" IsVisible="{Binding HasMessage}"
+               TextWrapping="Wrap" Margin="0,8,0,0" />
+
+    <!-- Horizontal scrolling, never wrapping: a wrapped line breaks the correspondence
+         between screen rows and line numbers, and a diff whose numbers stop matching the
+         file is worse than one you have to scroll. -->
+    <ScrollViewer Grid.Row="2" Margin="0,8,0,0"
+                  HorizontalScrollBarVisibility="Auto"
+                  IsVisible="{Binding HasHunks}">
+      <ItemsControl ItemsSource="{Binding Hunks}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="model:DiffHunk">
+            <StackPanel Margin="0,0,0,10">
+
+              <!-- The hunk header stays visible on purpose. It is jargon, and this app
+                   underlines jargon rather than hiding it. -->
+              <TextBlock Text="{Binding Header}"
+                         FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                         Opacity="0.7" TextDecorations="Underline"
+                         ToolTip.Tip="One run of changes and the unchanged lines around it. The numbers say which lines of the old file and which of the new one it covers." />
+
+              <ItemsControl ItemsSource="{Binding Lines}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="model:DiffLine">
+                    <Grid ColumnDefinitions="40,40,*">
+                      <TextBlock Text="{Binding OldLineNumber}" Opacity="0.4" FontSize="12"
+                                 FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                                 TextAlignment="Right" Margin="0,0,6,0" />
+                      <TextBlock Grid.Column="1" Text="{Binding NewLineNumber}" Opacity="0.4"
+                                 FontSize="12"
+                                 FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                                 TextAlignment="Right" Margin="0,0,6,0" />
+                      <TextBlock Grid.Column="2" Text="{Binding Text}"
+                                 FontFamily="Consolas, Cascadia Mono, Courier New, monospace" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

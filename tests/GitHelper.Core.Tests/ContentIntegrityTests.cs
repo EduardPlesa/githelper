@@ -79,6 +79,17 @@ public class ContentIntegrityTests
     }
 
     [Fact]
+    public void EveryInlineTermReferenceInAReadingDocumentResolvesToAGlossaryFile()
+    {
+        var unresolved = Library.Reading.Values
+            .SelectMany(d => Spans(d.What).OfType<TermSpan>().Select(s => (Document: d.Id, s.TermId)))
+            .Where(x => !Library.Terms.ContainsKey(x.TermId))
+            .ToList();
+
+        Assert.Empty(unresolved);
+    }
+
+    [Fact]
     public void EverySlotIsInTheKnownVocabulary()
     {
         var unknown = AllDocuments()

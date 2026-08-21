@@ -123,6 +123,23 @@ public class DiffViewModelTests
             viewModel.Message);
     }
 
+    /// <summary>
+    /// The other half of the pair. A file can hold staged and unstaged changes at once, so
+    /// each sentence has to name its own side — "no changes" would be ambiguous exactly
+    /// when the user most needs to know which.
+    /// </summary>
+    [Fact]
+    public async Task SaysTheUnstagedSideIsEmptyInItsOwnWords()
+    {
+        var source = new FakeSource { Next = () => Of(DiffKind.Empty) };
+        var viewModel = new DiffViewModel(source);
+
+        await viewModel.OpenAsync("repo", "a.txt", DiffSide.Unstaged, renamedFrom: null, default);
+
+        Assert.Empty(viewModel.Hunks);
+        Assert.Equal("There are no unstaged changes in this file any more.", viewModel.Message);
+    }
+
     [Fact]
     public async Task ExplainsABinaryFile()
     {

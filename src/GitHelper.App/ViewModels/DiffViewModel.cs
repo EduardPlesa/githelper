@@ -13,14 +13,20 @@ namespace GitHelper.App.ViewModels;
 /// </summary>
 public interface IDiffSource
 {
-    Task<FileDiff> ReadAsync(string repoPath, string path, DiffSide side, CancellationToken ct);
+    /// <param name="originalPath">
+    /// The name the file had before it was renamed, or null. Carried all the way down to the
+    /// pathspec: git only reports a rename when both names are in it.
+    /// </param>
+    Task<FileDiff> ReadAsync(
+        string repoPath, string path, DiffSide side, string? originalPath, CancellationToken ct);
 }
 
 /// <summary>The real one.</summary>
 public sealed class GitDiffSource(DiffReader reader) : IDiffSource
 {
-    public Task<FileDiff> ReadAsync(string repoPath, string path, DiffSide side, CancellationToken ct)
-        => reader.ReadAsync(repoPath, path, side, ct);
+    public Task<FileDiff> ReadAsync(
+        string repoPath, string path, DiffSide side, string? originalPath, CancellationToken ct)
+        => reader.ReadAsync(repoPath, path, side, originalPath, ct);
 }
 
 /// <summary>
@@ -101,7 +107,7 @@ public sealed partial class DiffViewModel(IDiffSource source, ContentLibrary con
         FileDiff diff;
         try
         {
-            diff = await source.ReadAsync(_repoPath!, Path, _side, ct);
+            diff = await source.ReadAsync(_repoPath!, Path, _side, _renamedFrom, ct);
         }
         catch (GitReadException)
         {

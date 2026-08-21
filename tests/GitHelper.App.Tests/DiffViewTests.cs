@@ -19,7 +19,7 @@ public class DiffViewTests
     private sealed class StubSource(FileDiff diff) : IDiffSource
     {
         public Task<FileDiff> ReadAsync(
-            string repoPath, string path, DiffSide side, CancellationToken ct)
+            string repoPath, string path, DiffSide side, string? originalPath, CancellationToken ct)
             => Task.FromResult(diff);
     }
 

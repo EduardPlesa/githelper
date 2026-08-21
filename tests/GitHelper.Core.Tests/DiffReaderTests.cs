@@ -23,17 +23,39 @@ public class DiffReaderTests
             l => l.Kind == DiffLineKind.Added && l.Text == "TWO");
     }
 
+    /// <summary>
+    /// Rename detection is scoped to the paths git is handed. Given only the new name,
+    /// `git diff --cached -- after.txt` reports a brand-new file with every line added — so a
+    /// row labelled "renamed" would open on the whole file as additions and never mention the
+    /// rename. Given both names, git prints the rename header the parser reads as Empty,
+    /// which is what lets the surface say the file was renamed.
+    ///
+    /// The two synthetic rename tests on this branch could not have caught this: one parses
+    /// hand-written text, the other hand-builds a FileDiff. Neither runs git.
+    ///
+    /// (This replaces a staged-change test that
+    /// GivesTwoDifferentDiffsForOnePathWhenStagedAndFurtherModified already subsumed
+    /// entirely — same fixture, same assertion, and more besides.)
+    /// </summary>
     [Fact]
-    public async Task ReadsAStagedChange()
+    public async Task ReadsAStagedRenameAsARenameRatherThanAWhollyNewFile()
     {
         using var repo = await TestRepo.CreateAsync();
-        var path = await repo.AddStagedAndFurtherModifiedAsync();
+        var (from, to) = await repo.StageARenameAsync();
+        var reader = Reader();
 
-        var diff = await Reader().ReadAsync(repo.Path, path, DiffSide.Staged);
+        var diff = await reader.ReadAsync(repo.Path, to, DiffSide.Staged, from);
 
-        Assert.Contains(
-            diff.Hunks.SelectMany(h => h.Lines),
-            l => l.Kind == DiffLineKind.Added && l.Text == "STAGED");
+        Assert.Equal(DiffKind.Empty, diff.Kind);
+        Assert.Empty(diff.Hunks);
+
+        // What git does without the old name, and the reason the parameter exists at all.
+        var newNameOnly = await reader.ReadAsync(repo.Path, to, DiffSide.Staged);
+
+        Assert.Equal(DiffKind.Text, newNameOnly.Kind);
+        Assert.All(
+            newNameOnly.Hunks.SelectMany(h => h.Lines),
+            l => Assert.Equal(DiffLineKind.Added, l.Kind));
     }
 
     /// <summary>

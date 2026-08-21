@@ -183,6 +183,23 @@ public sealed class TestRepo : IDisposable
     }
 
     /// <summary>
+    /// Stages a pure rename: the contents do not change, only the name. git records it as a
+    /// rename in the index, and reports it as one only when both names reach the pathspec —
+    /// which is the fact a diff read of a renamed row has to get right.
+    /// </summary>
+    /// <returns>The old name and the new one.</returns>
+    public async Task<(string From, string To)> StageARenameAsync(
+        string from = "before.txt", string to = "after.txt")
+    {
+        WriteFile(from, "one\ntwo\nthree\n");
+        await GitAsync("add", "-A");
+        await GitAsync("commit", "-q", "-m", "add " + from);
+
+        await GitAsync("mv", from, to);
+        return (from, to);
+    }
+
+    /// <summary>
     /// Leaves a file staged AND further modified, so the same path has two different diffs.
     /// This is the case the two-rows-one-file UI depends on.
     /// </summary>

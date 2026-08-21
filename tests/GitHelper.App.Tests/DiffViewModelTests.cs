@@ -12,9 +12,14 @@ public class DiffViewModelTests
         public Func<FileDiff>? Next { get; set; }
         public int Reads { get; private set; }
 
-        public Task<FileDiff> ReadAsync(string repoPath, string path, DiffSide side, CancellationToken ct)
+        /// <summary>The original path the last read was given, so a test can assert it arrived.</summary>
+        public string? LastOriginalPath { get; private set; }
+
+        public Task<FileDiff> ReadAsync(
+            string repoPath, string path, DiffSide side, string? originalPath, CancellationToken ct)
         {
             Reads++;
+            LastOriginalPath = originalPath;
             return Task.FromResult(Next!());
         }
     }
@@ -150,6 +155,21 @@ public class DiffViewModelTests
         Assert.Equal(
             "This file was renamed from old.txt. Its contents are unchanged.",
             viewModel.Message);
+    }
+
+    /// <summary>
+    /// The old name is not just narration: it has to reach the pathspec, or git reports a
+    /// staged rename as a wholly new file and the sentence below never gets a chance to run.
+    /// </summary>
+    [Fact]
+    public async Task PassesTheOldNameToTheReaderSoGitCanSeeTheRename()
+    {
+        var source = new FakeSource { Next = () => Of(DiffKind.Empty) };
+        var viewModel = new DiffViewModel(source, TestContent.Library);
+
+        await viewModel.OpenAsync("repo", "new.txt", DiffSide.Staged, renamedFrom: "old.txt", default);
+
+        Assert.Equal("old.txt", source.LastOriginalPath);
     }
 
     /// <summary>

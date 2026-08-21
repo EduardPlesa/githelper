@@ -6,7 +6,7 @@
              x:DataType="vm:DiffViewModel"
              x:Class="GitHelper.App.Views.DiffView">
 
-  <Grid RowDefinitions="Auto,Auto,*" Margin="12">
+  <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="12">
 
     <StackPanel Grid.Row="0" Spacing="2">
       <Grid ColumnDefinitions="*,Auto">
@@ -16,13 +16,19 @@
       <TextBlock Text="{Binding SideLabel}" Opacity="0.6" FontSize="12" />
     </StackPanel>
 
-    <TextBlock Grid.Row="1" Text="{Binding Message}" IsVisible="{Binding HasMessage}"
+    <!-- How to read what is below. Filled by the code-behind from reading/file-changes.md,
+         because the block schema maps to a control tree that bindings cannot build. Authored
+         content rather than a paragraph written here, so its jargon carries the same
+         hoverable definitions as the jargon everywhere else in the app. -->
+    <StackPanel Grid.Row="1" Name="IntroHost" Margin="0,8,0,0" />
+
+    <TextBlock Grid.Row="2" Text="{Binding Message}" IsVisible="{Binding HasMessage}"
                TextWrapping="Wrap" Margin="0,8,0,0" />
 
     <!-- Horizontal scrolling, never wrapping: a wrapped line breaks the correspondence
          between screen rows and line numbers, and a diff whose numbers stop matching the
          file is worse than one you have to scroll. -->
-    <ScrollViewer Grid.Row="2" Margin="0,8,0,0"
+    <ScrollViewer Grid.Row="3" Margin="0,8,0,0"
                   HorizontalScrollBarVisibility="Auto"
                   IsVisible="{Binding HasHunks}">
       <ItemsControl ItemsSource="{Binding Hunks}">
@@ -30,12 +36,15 @@
           <DataTemplate x:DataType="model:DiffHunk">
             <StackPanel Margin="0,0,0,10">
 
-              <!-- The hunk header stays visible on purpose. It is jargon, and this app
-                   underlines jargon rather than hiding it. -->
+              <!-- The header stays visible on purpose: it is the format the user will meet
+                   in every other git tool. It is not underlined, though. In this app an
+                   underline means "a glossary term with a definition behind it", and this
+                   is a line of raw git output, not a term. The intro above underlines the
+                   word hunk and says which blocks are hunks, so the definition is one
+                   hover away and lives only in terms/hunk.md. -->
               <TextBlock Text="{Binding Header}"
                          FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
-                         Opacity="0.7" TextDecorations="Underline"
-                         ToolTip.Tip="One run of changes and the unchanged lines around it. The numbers say which lines of the old file and which of the new one it covers." />
+                         Opacity="0.7" />
 
               <ItemsControl ItemsSource="{Binding Lines}">
                 <ItemsControl.ItemTemplate>

@@ -40,7 +40,7 @@ public class DiffViewTests
 
     private static async Task<DiffView> ShowAsync(FileDiff diff)
     {
-        var viewModel = new DiffViewModel(new StubSource(diff));
+        var viewModel = new DiffViewModel(new StubSource(diff), TestContent.Library);
         await viewModel.OpenAsync("repo", diff.Path, DiffSide.Unstaged, renamedFrom: null, default);
 
         var view = new DiffView { DataContext = viewModel };
@@ -112,5 +112,61 @@ public class DiffViewTests
         Assert.Contains("gone", texts);
         Assert.DoesNotContain("+fresh", texts);
         Assert.DoesNotContain("-gone", texts);
+    }
+
+    /// <summary>
+    /// The reading/ category existed but nothing in the app rendered it, so the one document
+    /// in it never reached a user and the every-term-is-referenced rule was being satisfied
+    /// by a document nobody could read. This is the test that makes that rule mean something.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ShowsTheAuthoredIntroAboveTheHunks()
+    {
+        var view = await ShowAsync(OneOfEachKind());
+
+        var host = view.FindControl<StackPanel>("IntroHost");
+        Assert.NotNull(host);
+        Assert.NotEmpty(host!.Children);
+    }
+
+    /// <summary>
+    /// Underlined-with-a-tooltip is how this app treats jargon everywhere else, and the
+    /// README promises it here by name for diff, hunk and the staging area. Rendering the
+    /// authored document is what buys all three at once.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task UnderlinesTheJargonInTheIntroAndGivesItItsDefinition()
+    {
+        var view = await ShowAsync(OneOfEachKind());
+        var host = view.FindControl<StackPanel>("IntroHost")!;
+
+        var terms = host.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .Where(t => t.TextDecorations == TextDecorations.Underline)
+            .ToList();
+
+        Assert.Equal(
+            new[] { "diff", "hunk", "staging area" },
+            terms.Select(t => t.Text ?? string.Empty).OrderBy(text => text, StringComparer.Ordinal));
+
+        Assert.All(terms, t => Assert.NotNull(ToolTip.GetTip(t)));
+    }
+
+    /// <summary>
+    /// The '@@' line is raw git output, not a glossary term. It used to be underlined and to
+    /// carry a hand-written tooltip that restated terms/hunk.md — the copy-in-two-places
+    /// failure the content library exists to prevent.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task LeavesTheHunkHeaderAsPlainGitOutputWithNoRestatedDefinition()
+    {
+        var view = await ShowAsync(OneOfEachKind());
+
+        var header = view.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .Single(t => t.Text == "@@ -1,2 +1,2 @@");
+
+        Assert.Null(ToolTip.GetTip(header));
+        Assert.NotEqual(TextDecorations.Underline, header.TextDecorations);
     }
 }

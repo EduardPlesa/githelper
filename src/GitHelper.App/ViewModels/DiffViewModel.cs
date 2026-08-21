@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GitHelper.Core.Content;
 using GitHelper.Core.Model;
 using GitHelper.Core.Repo;
 
@@ -26,13 +27,29 @@ public sealed class GitDiffSource(DiffReader reader) : IDiffSource
 /// One file's diff, open. Transient: it is about a single file, and persisting it would mean
 /// deciding what happens when that file stops existing.
 /// </summary>
-public sealed partial class DiffViewModel(IDiffSource source) : ViewModelBase
+public sealed partial class DiffViewModel(IDiffSource source, ContentLibrary content)
+    : ViewModelBase
 {
+    /// <summary>
+    /// The authored document that tells a beginner how to read what is below it. Named as a
+    /// constant rather than spelled inline, the way action ids are.
+    /// </summary>
+    private const string IntroDocumentId = "file-changes";
+
     private string? _repoPath;
     private DiffSide _side;
     private string? _renamedFrom;
 
     public ObservableCollection<DiffHunk> Hunks { get; } = new();
+
+    /// <summary>
+    /// The short explanation shown above the hunks, taken from the content library rather
+    /// than written into the view. This is the whole point of the reading/ category: the
+    /// definitions of diff, hunk and the staging area live in one place, get their tooltips
+    /// for free, and cannot drift from what the glossary says.
+    /// </summary>
+    public IReadOnlyList<ContentBlock> IntroBlocks { get; } =
+        content.Reading[IntroDocumentId].What;
 
     [ObservableProperty] private string _path = string.Empty;
     [ObservableProperty] private string _sideLabel = string.Empty;

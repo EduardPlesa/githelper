@@ -299,7 +299,7 @@ are *declined* rather than deferred:
 src/
   GitHelper.Core/       engine — git, parsing, actions, errors
   GitHelper.Content/    authored explanations + glossary + .gitignore templates
-                        (29 actions, 2 setup ops, 16 terms, 5 templates)
+                        (29 actions, 2 setup ops, 1 reading doc, 18 terms, 5 templates)
   GitHelper.App/        Avalonia UI
 tests/
   GitHelper.Core.Tests/ engine tests against real git

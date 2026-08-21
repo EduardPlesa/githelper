@@ -1,5 +1,6 @@
 using GitHelper.App.Infrastructure;
 using GitHelper.App.Settings;
+using GitHelper.Core.Content;
 using GitHelper.Core.Git;
 
 namespace GitHelper.App.Tests;
@@ -123,4 +124,13 @@ public sealed class StubBrowserLauncher : IBrowserLauncher
         CallCount++;
         LastUrl = url;
     }
+}
+
+/// <summary>
+/// The shipped content library, loaded once for the whole test run. Parsing every embedded
+/// document per fixture would be paid for by every test that builds a shell.
+/// </summary>
+internal static class TestContent
+{
+    public static ContentLibrary Library { get; } = ContentLibrary.Load();
 }

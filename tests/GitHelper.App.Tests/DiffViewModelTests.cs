@@ -34,11 +34,24 @@ public class DiffViewModelTests
     private static FileDiff Of(DiffKind kind, bool truncated = false) =>
         new("a.txt", kind, Array.Empty<DiffHunk>(), truncated);
 
+    /// <summary>
+    /// The intro is authored content, not a paragraph typed into the view. Available before
+    /// anything is opened, because it explains the format rather than the file.
+    /// </summary>
+    [Fact]
+    public void TakesItsIntroFromTheContentLibrary()
+    {
+        var viewModel = new DiffViewModel(new FakeSource(), TestContent.Library);
+
+        Assert.Equal(TestContent.Library.Reading["file-changes"].What, viewModel.IntroBlocks);
+        Assert.NotEmpty(viewModel.IntroBlocks);
+    }
+
     [Fact]
     public async Task PublishesHunksAndNamesTheSideOnOpen()
     {
         var source = new FakeSource { Next = () => TextDiff() };
-        var viewModel = new DiffViewModel(source);
+        var viewModel = new DiffViewModel(source, TestContent.Library);
 
         await viewModel.OpenAsync("repo", "a.txt", DiffSide.Unstaged, renamedFrom: null, default);
 
@@ -53,7 +66,7 @@ public class DiffViewModelTests
     public async Task NamesTheStagedSideDifferently()
     {
         var source = new FakeSource { Next = () => TextDiff() };
-        var viewModel = new DiffViewModel(source);
+        var viewModel = new DiffViewModel(source, TestContent.Library);
 
         await viewModel.OpenAsync("repo", "a.txt", DiffSide.Staged, renamedFrom: null, default);
 
@@ -69,7 +82,7 @@ public class DiffViewModelTests
     public async Task NamesAnUntrackedFileAsNewRatherThanUnstaged()
     {
         var source = new FakeSource { Next = () => TextDiff() };
-        var viewModel = new DiffViewModel(source);
+        var viewModel = new DiffViewModel(source, TestContent.Library);
 
         await viewModel.OpenAsync("repo", "new.txt", DiffSide.Untracked, renamedFrom: null, default);
 
@@ -80,7 +93,7 @@ public class DiffViewModelTests
     public async Task RefreshReReadsTheSameFile()
     {
         var source = new FakeSource { Next = () => TextDiff() };
-        var viewModel = new DiffViewModel(source);
+        var viewModel = new DiffViewModel(source, TestContent.Library);
         await viewModel.OpenAsync("repo", "a.txt", DiffSide.Unstaged, renamedFrom: null, default);
 
         await viewModel.RefreshAsync(default);
@@ -96,7 +109,7 @@ public class DiffViewModelTests
     public async Task AFailedRefreshKeepsThePreviousDiffAndReports()
     {
         var source = new FakeSource { Next = () => TextDiff() };
-        var viewModel = new DiffViewModel(source);
+        var viewModel = new DiffViewModel(source, TestContent.Library);
         await viewModel.OpenAsync("repo", "a.txt", DiffSide.Unstaged, renamedFrom: null, default);
 
         source.Next = () => throw new GitReadException(
@@ -113,7 +126,7 @@ public class DiffViewModelTests
     public async Task SaysWhichSideIsEmptyRatherThanSayingNoChanges()
     {
         var source = new FakeSource { Next = () => Of(DiffKind.Empty) };
-        var viewModel = new DiffViewModel(source);
+        var viewModel = new DiffViewModel(source, TestContent.Library);
 
         await viewModel.OpenAsync("repo", "a.txt", DiffSide.Staged, renamedFrom: null, default);
 
@@ -130,7 +143,7 @@ public class DiffViewModelTests
     public async Task ExplainsARenameWithNoContentChange()
     {
         var source = new FakeSource { Next = () => Of(DiffKind.Empty) };
-        var viewModel = new DiffViewModel(source);
+        var viewModel = new DiffViewModel(source, TestContent.Library);
 
         await viewModel.OpenAsync("repo", "new.txt", DiffSide.Staged, renamedFrom: "old.txt", default);
 
@@ -148,7 +161,7 @@ public class DiffViewModelTests
     public async Task SaysTheUnstagedSideIsEmptyInItsOwnWords()
     {
         var source = new FakeSource { Next = () => Of(DiffKind.Empty) };
-        var viewModel = new DiffViewModel(source);
+        var viewModel = new DiffViewModel(source, TestContent.Library);
 
         await viewModel.OpenAsync("repo", "a.txt", DiffSide.Unstaged, renamedFrom: null, default);
 
@@ -160,7 +173,7 @@ public class DiffViewModelTests
     public async Task SaysAnUntrackedFileStoppedBeingNewInItsOwnWords()
     {
         var source = new FakeSource { Next = () => Of(DiffKind.Empty) };
-        var viewModel = new DiffViewModel(source);
+        var viewModel = new DiffViewModel(source, TestContent.Library);
 
         await viewModel.OpenAsync("repo", "new.txt", DiffSide.Untracked, renamedFrom: null, default);
 
@@ -171,7 +184,7 @@ public class DiffViewModelTests
     public async Task ExplainsABinaryFile()
     {
         var source = new FakeSource { Next = () => Of(DiffKind.Binary) };
-        var viewModel = new DiffViewModel(source);
+        var viewModel = new DiffViewModel(source, TestContent.Library);
 
         await viewModel.OpenAsync("repo", "logo.png", DiffSide.Unstaged, renamedFrom: null, default);
 
@@ -182,7 +195,7 @@ public class DiffViewModelTests
     public async Task NamesTheRealCommandWhenTheDiffIsCutOff()
     {
         var source = new FakeSource { Next = () => TextDiff() with { Truncated = true } };
-        var viewModel = new DiffViewModel(source);
+        var viewModel = new DiffViewModel(source, TestContent.Library);
 
         await viewModel.OpenAsync("repo", "a.txt", DiffSide.Unstaged, renamedFrom: null, default);
 
@@ -194,7 +207,7 @@ public class DiffViewModelTests
     public async Task ClosingRaisesTheCallback()
     {
         var closed = false;
-        var viewModel = new DiffViewModel(new FakeSource { Next = () => TextDiff() })
+        var viewModel = new DiffViewModel(new FakeSource { Next = () => TextDiff() }, TestContent.Library)
         {
             CloseRequested = () => closed = true,
         };

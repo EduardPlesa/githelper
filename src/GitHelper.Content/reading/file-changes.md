@@ -18,5 +18,8 @@ edited in two distant places shows two of them.
 
 There are two different things you can look at, and they answer different questions. Changes
 you have not staged yet are the edits sitting in your files right now. Changes you have staged
-are the ones already put in the [[staging-area]], waiting to go into your next commit. A file
-can have both at once, if you staged it and then kept editing.
+are the ones already put in the [[staging-area|staging area]], waiting to go into your next
+commit. A file can have both at once, if you staged it and then kept editing.
+
+A file git has never seen before is a third case, and simpler: there is no earlier version to
+compare it against, so every line in it shows as added.

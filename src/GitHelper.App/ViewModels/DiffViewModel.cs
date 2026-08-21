@@ -64,6 +64,7 @@ public sealed partial class DiffViewModel(IDiffSource source) : ViewModelBase
         SideLabel = side switch
         {
             DiffSide.Staged => "Changes you have staged, ready to commit",
+            DiffSide.Untracked => "Every line in this new file",
             _ => "Changes you have not staged yet",
         };
 
@@ -121,8 +122,11 @@ public sealed partial class DiffViewModel(IDiffSource source) : ViewModelBase
         if (_renamedFrom is not null)
             return $"This file was renamed from {_renamedFrom}. Its contents are unchanged.";
 
-        return _side == DiffSide.Staged
-            ? "There are no staged changes in this file any more."
-            : "There are no unstaged changes in this file any more.";
+        return _side switch
+        {
+            DiffSide.Staged => "There are no staged changes in this file any more.",
+            DiffSide.Untracked => "This file is no longer new to git.",
+            _ => "There are no unstaged changes in this file any more.",
+        };
     }
 }

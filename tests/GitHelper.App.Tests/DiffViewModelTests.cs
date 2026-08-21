@@ -60,6 +60,22 @@ public class DiffViewModelTests
         Assert.Equal("Changes you have staged, ready to commit", viewModel.SideLabel);
     }
 
+    /// <summary>
+    /// An untracked file has no committed version to compare against, so every line in it is
+    /// an addition. Calling that "changes you have not staged yet" would contradict the row
+    /// that opened this surface, which labels the same file "new file".
+    /// </summary>
+    [Fact]
+    public async Task NamesAnUntrackedFileAsNewRatherThanUnstaged()
+    {
+        var source = new FakeSource { Next = () => TextDiff() };
+        var viewModel = new DiffViewModel(source);
+
+        await viewModel.OpenAsync("repo", "new.txt", DiffSide.Untracked, renamedFrom: null, default);
+
+        Assert.Equal("Every line in this new file", viewModel.SideLabel);
+    }
+
     [Fact]
     public async Task RefreshReReadsTheSameFile()
     {
@@ -138,6 +154,17 @@ public class DiffViewModelTests
 
         Assert.Empty(viewModel.Hunks);
         Assert.Equal("There are no unstaged changes in this file any more.", viewModel.Message);
+    }
+
+    [Fact]
+    public async Task SaysAnUntrackedFileStoppedBeingNewInItsOwnWords()
+    {
+        var source = new FakeSource { Next = () => Of(DiffKind.Empty) };
+        var viewModel = new DiffViewModel(source);
+
+        await viewModel.OpenAsync("repo", "new.txt", DiffSide.Untracked, renamedFrom: null, default);
+
+        Assert.Equal("This file is no longer new to git.", viewModel.Message);
     }
 
     [Fact]

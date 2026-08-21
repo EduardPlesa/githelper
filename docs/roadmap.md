@@ -194,14 +194,15 @@ them, and a beginner who genuinely needs submodules needs a colleague, not a GUI
 | **v1.1** | ~~Remote management, tags, stash~~ (all shipped) | No new concepts; proved the descriptor model scales past the original thirteen |
 | **v2** | ~~Operation state, then merge~~ (shipped) | The load-bearing change everything below depends on |
 | **v2.1** | ~~Rebase~~ (shipped) | Rode on v2's operation state; added the sequencer and history rewriting |
-| **v2.5** | Diff viewer | Independent of the above, and a prerequisite for v3 |
+| **v2.5** | Diff viewer — **next** | Independent of the above, and a prerequisite for v3 |
 | **v3** | Guided conflict resolution | Sits on v2 + v2.5 |
-
 | **—** | Hunk staging, submodules | Declined above |
 
 **v2 shipped before v1.1.** The order in this table was the plan; the argument in Bucket 2 —
 do the load-bearing change before anything that depends on it — won. v1.1's tags and stash
-plan predates the `RepoState` shape v2 left behind and needs rewriting against it.
+plan predates the `RepoState` shape v2 left behind, so it was kept as a record rather than
+rewritten against it: the features shipped, and the plan's exact-match anchors describe a
+codebase that no longer exists.
 
 ---
 

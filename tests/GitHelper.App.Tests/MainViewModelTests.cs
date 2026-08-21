@@ -402,4 +402,22 @@ public class MainViewModelTests
         Assert.NotEmpty(viewModel.Changes.Conflicted);
         Assert.All(viewModel.Changes.Conflicted, row => Assert.False(row.CanViewChanges));
     }
+
+    /// <summary>
+    /// An open diff belongs to the repository it was read from. Closing that repository has
+    /// to take it with it, or the next project opened shows the last one's file.
+    /// </summary>
+    [Fact]
+    public async Task ClosingTheRepositoryClosesAnOpenDiff()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var path = await repo.AddUnstagedChangeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+        await viewModel.Changes.Unstaged.Single(r => r.Path == path).ViewChangesCommand.ExecuteAsync(null);
+
+        await viewModel.CloseRepositoryCommand.ExecuteAsync(null);
+
+        Assert.Null(viewModel.OpenDiff);
+    }
 }

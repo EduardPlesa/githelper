@@ -319,6 +319,10 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Explain.Clear();
         _watcher.Stop();
 
+        // Not just tidiness: this one holds a path from the repository being closed, so a
+        // surviving diff would render one project's file under the next project's name.
+        OpenDiff = null;
+
         return Startup.InitializeAsync();
     }
 

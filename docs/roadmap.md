@@ -1,7 +1,7 @@
 # GitHelper — Roadmap
 
 **Status:** living document
-**Last updated:** 2026-08-17
+**Last updated:** 2026-08-21
 
 This records what GitHelper does *not* do yet, why, and in what order those gaps should close.
 It exists so the absences read as decisions rather than oversights — and so that a decision made
@@ -142,12 +142,33 @@ building it twice.
 
 ### Bucket 3 — Not actions at all
 
-**A diff viewer.**
+**~~A diff viewer~~ (shipped).**
 
-This is a read surface. It has no danger level, no preconditions, and no undo hint, so it does not
-belong in the action catalogue. It needs new UI plus a parser for `git diff` output.
+This is a read surface, and shipping it cost a content-model change this section did not
+predict: `ExplanationDocument` carries a danger level and `what` / `risks` / `undo`, and a
+surface the user only reads has none of the three. Bending it to fit would have meant three
+empty sections and a danger level describing nothing, so content grew a fourth category
+instead — `reading/`, alongside `actions/`, `terms/`, and `.gitignore` templates — holding a
+`ReadingDocument` with just an id, a title, glossary terms, and `what`.
 
-It is independent of everything else and is a prerequisite for conflict resolution.
+Conflicted files were left out on purpose, not for lack of time. `git diff` emits combined
+diff format for unmerged paths — two `@@@`-marked hunks against two parents instead of one —
+and `DiffParser` reads one grammar, not two. That surface belongs to v3, which is built for
+choosing between sides rather than reading one; offering a diff button on a conflicted row here
+would have opened onto an empty parse for the exact files a beginner most needs help with.
+
+`git diff --no-index` exits non-zero whenever the files differ, which is every untracked file
+compared against nothing. Judging that read by the exit code would report every new file as a
+failure. This is the second time this codebase has been caught by an exit code that means
+something other than failure — `ActionOutcome.Paused` was the first, at rebase — and the fix
+carries the same discipline: `DiffReader` decides on the shape of `stdout`, never on `Success`,
+and only falls back to the exit code when there is no output to shape a decision from.
+
+The diff also could not live in `RepoState`. That snapshot is re-read on every action and every
+file-watcher tick and has to stay cheap; a diff is per-file and its size has no bound. `DiffReader`
+is a sibling of `RepoStateReader`, not a field on it, read on demand rather than kept — an open
+diff is re-read inside the existing refresh, so what is on screen stays observed rather than
+remembered, the same rule the rest of the app already lives by.
 
 ### Bucket 4 — Guided conflict resolution
 
@@ -194,14 +215,15 @@ them, and a beginner who genuinely needs submodules needs a colleague, not a GUI
 | **v1.1** | ~~Remote management, tags, stash~~ (all shipped) | No new concepts; proved the descriptor model scales past the original thirteen |
 | **v2** | ~~Operation state, then merge~~ (shipped) | The load-bearing change everything below depends on |
 | **v2.1** | ~~Rebase~~ (shipped) | Rode on v2's operation state; added the sequencer and history rewriting |
-| **v2.5** | Diff viewer | Independent of the above, and a prerequisite for v3 |
-| **v3** | Guided conflict resolution | Sits on v2 + v2.5 |
-
+| **v2.5** | ~~Diff viewer~~ (shipped) | Independent of the above, and a prerequisite for v3 |
+| **v3** | Guided conflict resolution — **next** | Sits on v2 + v2.5 |
 | **—** | Hunk staging, submodules | Declined above |
 
 **v2 shipped before v1.1.** The order in this table was the plan; the argument in Bucket 2 —
-do the load-bearing change before anything that depends on it — won. v1.1's tags and stash
-plan predates the `RepoState` shape v2 left behind and needs rewriting against it.
+do the load-bearing change before anything that depends on it — won. v1.1's tags and stash plan
+predates the `RepoState` shape v2 left behind; it was kept as a record rather than rewritten,
+with a header saying so, because the features shipped and its exact-match anchors describe a
+codebase that no longer exists.
 
 ---
 

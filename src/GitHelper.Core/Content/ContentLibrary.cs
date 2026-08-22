@@ -7,15 +7,18 @@ public sealed class ContentLibrary
 {
     public IReadOnlyDictionary<string, ExplanationDocument> Actions { get; }
     public IReadOnlyDictionary<string, ExplanationDocument> Setup { get; }
+    public IReadOnlyDictionary<string, ReadingDocument> Reading { get; }
     public IReadOnlyDictionary<string, GlossaryTerm> Terms { get; }
 
     private ContentLibrary(
         IReadOnlyDictionary<string, ExplanationDocument> actions,
         IReadOnlyDictionary<string, ExplanationDocument> setup,
+        IReadOnlyDictionary<string, ReadingDocument> reading,
         IReadOnlyDictionary<string, GlossaryTerm> terms)
     {
         Actions = actions;
         Setup = setup;
+        Reading = reading;
         Terms = terms;
     }
 
@@ -27,6 +30,7 @@ public sealed class ContentLibrary
     {
         var actions = new Dictionary<string, ExplanationDocument>(StringComparer.OrdinalIgnoreCase);
         var setup = new Dictionary<string, ExplanationDocument>(StringComparer.OrdinalIgnoreCase);
+        var reading = new Dictionary<string, ReadingDocument>(StringComparer.OrdinalIgnoreCase);
         var terms = new Dictionary<string, GlossaryTerm>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var resourceName in assembly.GetManifestResourceNames())
@@ -50,6 +54,13 @@ public sealed class ContentLibrary
                     throw new ContentException($"{resourceName}: duplicate setup id '{document.Id}'.");
                 setup[document.Id] = document;
             }
+            else if (resourceName.Contains(".reading.", StringComparison.OrdinalIgnoreCase))
+            {
+                var document = ContentParser.ParseReading(text, resourceName);
+                if (reading.ContainsKey(document.Id))
+                    throw new ContentException($"{resourceName}: duplicate reading id '{document.Id}'.");
+                reading[document.Id] = document;
+            }
             else if (resourceName.Contains(".terms.", StringComparison.OrdinalIgnoreCase))
             {
                 var term = ParseTerm(text, resourceName);
@@ -59,7 +70,7 @@ public sealed class ContentLibrary
             }
         }
 
-        return new ContentLibrary(actions, setup, terms);
+        return new ContentLibrary(actions, setup, reading, terms);
     }
 
     private static string ReadResource(Assembly assembly, string name)

@@ -171,6 +171,50 @@ public sealed class TestRepo : IDisposable
         await GitAsync("rebase", baseBranch);
     }
 
+    /// <summary>Commits a file, then edits it again without staging: one unstaged change.</summary>
+    public async Task<string> AddUnstagedChangeAsync(string relativePath = "tracked.txt")
+    {
+        WriteFile(relativePath, "one\ntwo\nthree\n");
+        await GitAsync("add", "-A");
+        await GitAsync("commit", "-q", "-m", "add " + relativePath);
+
+        WriteFile(relativePath, "one\nTWO\nthree\n");
+        return relativePath;
+    }
+
+    /// <summary>
+    /// Stages a pure rename: the contents do not change, only the name. git records it as a
+    /// rename in the index, and reports it as one only when both names reach the pathspec —
+    /// which is the fact a diff read of a renamed row has to get right.
+    /// </summary>
+    /// <returns>The old name and the new one.</returns>
+    public async Task<(string From, string To)> StageARenameAsync(
+        string from = "before.txt", string to = "after.txt")
+    {
+        WriteFile(from, "one\ntwo\nthree\n");
+        await GitAsync("add", "-A");
+        await GitAsync("commit", "-q", "-m", "add " + from);
+
+        await GitAsync("mv", from, to);
+        return (from, to);
+    }
+
+    /// <summary>
+    /// Leaves a file staged AND further modified, so the same path has two different diffs.
+    /// This is the case the two-rows-one-file UI depends on.
+    /// </summary>
+    public async Task<string> AddStagedAndFurtherModifiedAsync(string relativePath = "both.txt")
+    {
+        WriteFile(relativePath, "one\ntwo\n");
+        await GitAsync("add", "-A");
+        await GitAsync("commit", "-q", "-m", "add " + relativePath);
+
+        WriteFile(relativePath, "one\nSTAGED\n");
+        await GitAsync("add", relativePath);
+        WriteFile(relativePath, "one\nWORKTREE\n");
+        return relativePath;
+    }
+
     public void Dispose()
     {
         try

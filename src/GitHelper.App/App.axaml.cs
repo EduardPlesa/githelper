@@ -68,6 +68,7 @@ public partial class App : Application
 
         var explain = new ExplainPanelViewModel(actions, confirmations, settings, setupService);
         var startup = new StartupViewModel(settings, picker, reader, environment, inspector);
+        var diff = new DiffViewModel(new GitDiffSource(new DiffReader(runner)), content);
 
         return new MainViewModel(
             reader,
@@ -75,6 +76,7 @@ public partial class App : Application
             explain,
             new CommandLogViewModel(commandLog, dispatcher),
             new ChangesViewModel(explain, browser),
+            diff,
             new HistoryViewModel(explain),
             new BranchesViewModel(explain),
             new OperationBannerViewModel(explain),

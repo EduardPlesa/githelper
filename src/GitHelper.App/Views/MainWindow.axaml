@@ -19,6 +19,9 @@
     <DataTemplate DataType="vm:BranchesViewModel">
       <views:BranchesView />
     </DataTemplate>
+    <DataTemplate DataType="vm:DiffViewModel">
+      <views:DiffView />
+    </DataTemplate>
   </Window.DataTemplates>
 
   <Panel>

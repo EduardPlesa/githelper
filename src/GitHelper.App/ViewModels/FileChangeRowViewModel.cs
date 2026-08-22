@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.Input;
 using GitHelper.Core.Model;
+using GitHelper.Core.Repo;
 
 namespace GitHelper.App.ViewModels;
 
@@ -12,7 +13,8 @@ public sealed class FileChangeRowViewModel : ViewModelBase
     public FileChangeRowViewModel(
         FileChange change,
         bool staged,
-        Func<string, string, Task> invokeAction)
+        Func<string, string, Task> invokeAction,
+        Func<string, DiffSide, string?, Task>? viewChanges = null)
     {
         Path = change.Path;
         IsStaged = staged;
@@ -24,6 +26,30 @@ public sealed class FileChangeRowViewModel : ViewModelBase
         UnstageCommand = new AsyncRelayCommand(() => invokeAction("unstage-file", change.Path));
         DiscardCommand = new AsyncRelayCommand(() => invokeAction("discard-file", change.Path));
         MarkResolvedCommand = new AsyncRelayCommand(() => invokeAction("mark-resolved", change.Path));
+
+        // Two rows have no diff to show, and both are hidden rather than left to fail.
+        //
+        // A conflicted file's diff is git's combined format, a grammar this app does not read
+        // yet. That surface belongs to guided conflict resolution, not here.
+        //
+        // A path ending in '/' is a wholly untracked folder: git status runs with the default
+        // -u normal, which collapses one into a single entry. A folder has no single diff —
+        // `diff --no-index -- /dev/null newdir/` fails outright — and offering a button whose
+        // only outcome is "the changes in this file could not be read" is worse than offering
+        // none, especially since making a folder of new files is beginner's work.
+        CanViewChanges = viewChanges is not null
+            && !change.IsUnmerged
+            && !change.Path.EndsWith('/');
+
+        var side = staged
+            ? DiffSide.Staged
+            : change.IsUntracked ? DiffSide.Untracked : DiffSide.Unstaged;
+
+        ViewChangesCommand = new AsyncRelayCommand(
+            () => viewChanges is null
+                ? Task.CompletedTask
+                : viewChanges(change.Path, side, change.OriginalPath),
+            () => CanViewChanges);
     }
 
     public string Path { get; }
@@ -49,6 +75,11 @@ public sealed class FileChangeRowViewModel : ViewModelBase
     public IAsyncRelayCommand DiscardCommand { get; }
 
     public IAsyncRelayCommand MarkResolvedCommand { get; }
+
+    /// <summary>False for a conflicted file, which has no diff this app can read yet.</summary>
+    public bool CanViewChanges { get; }
+
+    public IAsyncRelayCommand ViewChangesCommand { get; }
 
     private static string DescribeKind(ChangeKind kind) => kind switch
     {

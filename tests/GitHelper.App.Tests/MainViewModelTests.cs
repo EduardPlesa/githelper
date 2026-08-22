@@ -37,6 +37,7 @@ public class MainViewModelTests
             explain,
             new CommandLogViewModel(log, dispatcher),
             new ChangesViewModel(explain),
+            new DiffViewModel(new GitDiffSource(new DiffReader(runner)), TestContent.Library),
             new HistoryViewModel(explain),
             new BranchesViewModel(explain),
             new OperationBannerViewModel(explain),
@@ -338,5 +339,131 @@ public class MainViewModelTests
         await main.RefreshAsync();
 
         Assert.False(main.OperationBanner.IsVisible);
+    }
+
+    [Fact]
+    public async Task ShowsTheDiffInPlaceOfTheCurrentTabWhenARowAsksForIt()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var path = await repo.AddUnstagedChangeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+
+        await viewModel.Changes.Unstaged.Single(r => r.Path == path).ViewChangesCommand.ExecuteAsync(null);
+
+        Assert.IsType<DiffViewModel>(viewModel.CurrentTab);
+        Assert.Equal(path, ((DiffViewModel)viewModel.CurrentTab).Path);
+    }
+
+    [Fact]
+    public async Task GoingBackRestoresTheTab()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var path = await repo.AddUnstagedChangeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+        await viewModel.Changes.Unstaged.Single(r => r.Path == path).ViewChangesCommand.ExecuteAsync(null);
+
+        ((DiffViewModel)viewModel.CurrentTab).CloseCommand.Execute(null);
+
+        Assert.Same(viewModel.Changes, viewModel.CurrentTab);
+    }
+
+    /// <summary>
+    /// The diff is about one file in one tab. Leaving that tab is leaving the question.
+    /// </summary>
+    [Fact]
+    public async Task LeavingTheChangesTabClosesTheDiff()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var path = await repo.AddUnstagedChangeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+        await viewModel.Changes.Unstaged.Single(r => r.Path == path).ViewChangesCommand.ExecuteAsync(null);
+
+        viewModel.SelectedTab = MainTab.History;
+
+        Assert.Same(viewModel.History, viewModel.CurrentTab);
+
+        viewModel.SelectedTab = MainTab.Changes;
+
+        Assert.Same(viewModel.Changes, viewModel.CurrentTab);
+    }
+
+    /// <summary>Conflicted files need combined diff format, which is v3's, not this surface's.</summary>
+    [Fact]
+    public async Task OffersNoDiffForAConflictedFile()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        await repo.StartConflictingMergeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+
+        Assert.NotEmpty(viewModel.Changes.Conflicted);
+        Assert.All(viewModel.Changes.Conflicted, row => Assert.False(row.CanViewChanges));
+    }
+
+    /// <summary>
+    /// git status runs with the default -u normal, which collapses a wholly untracked folder
+    /// into one row whose path ends in '/'. A folder has no single diff — the read fails with
+    /// "Could not access 'newdir/nul'" — so the button must not be there to press. Creating a
+    /// folder of new files is one of the first things a beginner does.
+    /// </summary>
+    [Fact]
+    public async Task OffersNoDiffForAnUntrackedFolderButStillDoesForALooseFile()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        repo.WriteFile("newdir/a.txt", "x\n");
+        repo.WriteFile("newdir/b.txt", "y\n");
+        repo.WriteFile("loose.txt", "z\n");
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+
+        var folder = viewModel.Changes.Unstaged.Single(r => r.Path.EndsWith('/'));
+        Assert.Equal("newdir/", folder.Path);
+        Assert.False(folder.CanViewChanges);
+        Assert.False(folder.ViewChangesCommand.CanExecute(null));
+
+        Assert.True(viewModel.Changes.Unstaged.Single(r => r.Path == "loose.txt").CanViewChanges);
+    }
+
+    /// <summary>
+    /// An open diff belongs to the repository it was read from. Closing that repository has
+    /// to take it with it, or the next project opened shows the last one's file.
+    /// </summary>
+    [Fact]
+    public async Task ClosingTheRepositoryClosesAnOpenDiff()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var path = await repo.AddUnstagedChangeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+        await viewModel.Changes.Unstaged.Single(r => r.Path == path).ViewChangesCommand.ExecuteAsync(null);
+
+        await viewModel.CloseRepositoryCommand.ExecuteAsync(null);
+
+        Assert.Null(viewModel.OpenDiff);
+    }
+
+    /// <summary>
+    /// A diff read once and left alone would quietly disagree with the file list beside it.
+    /// The file's status does not change when it is edited twice, so nothing but re-reading
+    /// catches this.
+    /// </summary>
+    [Fact]
+    public async Task RefreshingReReadsAnOpenDiff()
+    {
+        using var repo = await TestRepo.CreateAsync();
+        var path = await repo.AddUnstagedChangeAsync();
+        using var viewModel = NewFixture().Main;
+        await viewModel.Startup.OpenAsync(repo.Path);
+        await viewModel.Changes.Unstaged.Single(r => r.Path == path).ViewChangesCommand.ExecuteAsync(null);
+
+        repo.WriteFile(path, "one\nEDITED AGAIN\nthree\n");
+        await viewModel.RefreshAsync();
+
+        var lines = viewModel.Diff.Hunks.SelectMany(h => h.Lines).ToList();
+        Assert.Contains(lines, l => l.Text == "EDITED AGAIN");
+        Assert.DoesNotContain(lines, l => l.Text == "TWO");
     }
 }

@@ -50,6 +50,7 @@ public class LocalSetupJourneyTests : IDisposable
             explain,
             new CommandLogViewModel(log, dispatcher),
             new ChangesViewModel(explain),
+            new DiffViewModel(new GitDiffSource(new DiffReader(runner)), TestContent.Library),
             new HistoryViewModel(explain),
             new BranchesViewModel(explain),
             new OperationBannerViewModel(explain),

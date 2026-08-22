@@ -46,6 +46,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         ExplainPanelViewModel explain,
         CommandLogViewModel commandLog,
         ChangesViewModel changes,
+        DiffViewModel diff,
         HistoryViewModel history,
         BranchesViewModel branches,
         OperationBannerViewModel operationBanner,
@@ -66,6 +67,7 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Explain = explain;
         CommandLog = commandLog;
         Changes = changes;
+        Diff = diff;
         History = history;
         Branches = branches;
         OperationBanner = operationBanner;
@@ -75,6 +77,14 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
         Startup.RepositoryOpenedAsync = (repoRoot, ct) => OpenRepositoryAsync(repoRoot, ct);
         Explain.ActionCompletedAsync = OnActionCompletedAsync;
+
+        Diff.CloseRequested = () => OpenDiff = null;
+        Changes.DiffRequestedAsync = async (path, side, renamedFrom, ct) =>
+        {
+            if (_repoPath is null) return;
+            await Diff.OpenAsync(_repoPath, path, side, renamedFrom, ct);
+            OpenDiff = Diff;
+        };
 
         Startup.InitRequestedAsync = (folderPath, ct) =>
         {
@@ -102,6 +112,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
 
     public ChangesViewModel Changes { get; }
 
+    public DiffViewModel Diff { get; }
+
     public HistoryViewModel History { get; }
 
     public BranchesViewModel Branches { get; }
@@ -120,9 +132,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     /// The child viewmodel for the selected tab. The window maps each viewmodel type to its
     /// view with a DataTemplate, so the centre pane needs no visibility logic in XAML.
     /// </summary>
-    public ViewModelBase CurrentTab => SelectedTab switch
+    public ViewModelBase CurrentTab => OpenDiff ?? SelectedTab switch
     {
-        MainTab.History => History,
+        MainTab.History => (ViewModelBase)History,
         MainTab.Branches => Branches,
         _ => Changes,
     };
@@ -141,6 +153,13 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private MainTab _selectedTab = MainTab.Changes;
     [ObservableProperty] private AppTheme _currentTheme = AppTheme.System;
     [ObservableProperty] private string? _statusMessage;
+
+    /// <summary>
+    /// Non-null while a diff is open. It takes the middle column in place of the current tab
+    /// rather than being a tab of its own: a diff is not a place you navigate to, it is a
+    /// thing you open about one file.
+    /// </summary>
+    [ObservableProperty] private DiffViewModel? _openDiff;
 
     public IRelayCommand CycleThemeCommand { get; }
 
@@ -206,6 +225,9 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
             History.Update(state);
             Branches.Update(state);
             OperationBanner.Update(state);
+            // Inside the refresh gate and on the same token: part of the refresh, not a race
+            // beside it. Only while a diff is open, so a closed surface costs nothing.
+            if (OpenDiff is not null) await OpenDiff.RefreshAsync(ct);
         }
         finally
         {
@@ -227,6 +249,8 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Startup.InitRequestedAsync = null;
         Explain.SetupCompletedAsync = null;
         Explain.SetupCancelled = null;
+        Diff.CloseRequested = null;
+        Changes.DiffRequestedAsync = null;
         _watcher.Dispose();
         CommandLog.Dispose();
         _disposing.Dispose();
@@ -298,10 +322,22 @@ public sealed partial class MainViewModel : ViewModelBase, IDisposable
         Explain.Clear();
         _watcher.Stop();
 
+        // Not just tidiness: this one holds a path from the repository being closed, so a
+        // surviving diff would render one project's file under the next project's name.
+        OpenDiff = null;
+
         return Startup.InitializeAsync();
     }
 
-    partial void OnSelectedTabChanged(MainTab value) => OnPropertyChanged(nameof(CurrentTab));
+    partial void OnOpenDiffChanged(DiffViewModel? value) => OnPropertyChanged(nameof(CurrentTab));
+
+    partial void OnSelectedTabChanged(MainTab value)
+    {
+        // The diff is about one file in the Changes tab. Leaving that tab is leaving the
+        // question, and a diff hanging over the History tab would be nonsense.
+        OpenDiff = null;
+        OnPropertyChanged(nameof(CurrentTab));
+    }
 
     private void CycleTheme()
     {

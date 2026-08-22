@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GitHelper.App.ViewModels"
+             xmlns:model="using:GitHelper.Core.Model"
+             xmlns:rendering="using:GitHelper.App.Rendering"
+             x:DataType="vm:DiffViewModel"
+             x:Class="GitHelper.App.Views.DiffView">
+
+  <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="12">
+
+    <StackPanel Grid.Row="0" Spacing="2">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding Path}" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+        <Button Grid.Column="1" Content="Back to changes" Command="{Binding CloseCommand}" />
+      </Grid>
+      <TextBlock Text="{Binding SideLabel}" Opacity="0.6" FontSize="12" />
+    </StackPanel>
+
+    <!-- How to read what is below. Filled by the code-behind from reading/file-changes.md,
+         because the block schema maps to a control tree that bindings cannot build. Authored
+         content rather than a paragraph written here, so its jargon carries the same
+         hoverable definitions as the jargon everywhere else in the app. -->
+    <StackPanel Grid.Row="1" Name="IntroHost" Margin="0,8,0,0" />
+
+    <TextBlock Grid.Row="2" Text="{Binding Message}" IsVisible="{Binding HasMessage}"
+               TextWrapping="Wrap" Margin="0,8,0,0" />
+
+    <!-- Horizontal scrolling, never wrapping: a wrapped line breaks the correspondence
+         between screen rows and line numbers, and a diff whose numbers stop matching the
+         file is worse than one you have to scroll. -->
+    <ScrollViewer Grid.Row="3" Margin="0,8,0,0"
+                  HorizontalScrollBarVisibility="Auto"
+                  IsVisible="{Binding HasHunks}">
+      <ItemsControl ItemsSource="{Binding Hunks}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="model:DiffHunk">
+            <StackPanel Margin="0,0,0,10">
+
+              <!-- The header stays visible on purpose: it is the format the user will meet
+                   in every other git tool. It is not underlined, though. In this app an
+                   underline means "a glossary term with a definition behind it", and this
+                   is a line of raw git output, not a term. The intro above underlines the
+                   word hunk and says which blocks are hunks, so the definition is one
+                   hover away and lives only in terms/hunk.md. -->
+              <TextBlock Text="{Binding Header}"
+                         FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                         Opacity="0.7" />
+
+              <ItemsControl ItemsSource="{Binding Lines}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="model:DiffLine">
+                    <!-- The number columns are 56 wide, not 40: MaxLines bounds how many
+                         lines are shown, never how large the numbers are, and a two-line
+                         hunk at line 150000 needs six digits.
+
+                         The tint says added or removed at a glance; the marker column says
+                         it in a way that survives being colour-blind, and is the plus and
+                         minus the glossary promises. -->
+                    <Grid Name="LineRow" ColumnDefinitions="56,56,14,*"
+                          Background="{Binding Kind, Converter={x:Static rendering:DiffLineBackgroundConverter.Instance}}">
+                      <TextBlock Text="{Binding OldLineNumber}" Opacity="0.4" FontSize="12"
+                                 FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                                 TextAlignment="Right" Margin="0,0,6,0" />
+                      <TextBlock Grid.Column="1" Text="{Binding NewLineNumber}" Opacity="0.4"
+                                 FontSize="12"
+                                 FontFamily="Consolas, Cascadia Mono, Courier New, monospace"
+                                 TextAlignment="Right" Margin="0,0,6,0" />
+                      <TextBlock Grid.Column="2" Name="LineMarker" Text="{Binding Marker}"
+                                 FontWeight="Bold" TextAlignment="Center"
+                                 FontFamily="Consolas, Cascadia Mono, Courier New, monospace" />
+                      <TextBlock Grid.Column="3" Text="{Binding Text}"
+                                 FontFamily="Consolas, Cascadia Mono, Courier New, monospace" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

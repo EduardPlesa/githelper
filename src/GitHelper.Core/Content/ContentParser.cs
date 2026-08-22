@@ -30,22 +30,8 @@ public static partial class ContentParser
 
     public static ExplanationDocument Parse(string fileText, string sourceName)
     {
-        var (frontmatterText, body) = SplitFrontmatter(fileText, sourceName);
+        var (matter, body) = ParseSharedFrontmatter(fileText, sourceName);
 
-        Frontmatter matter;
-        try
-        {
-            matter = Yaml.Deserialize<Frontmatter>(frontmatterText) ?? new Frontmatter();
-        }
-        catch (Exception ex)
-        {
-            throw new ContentException($"{sourceName}: frontmatter is not valid YAML. {ex.Message}");
-        }
-
-        if (string.IsNullOrWhiteSpace(matter.Id))
-            throw new ContentException($"{sourceName}: frontmatter is missing 'id'.");
-        if (string.IsNullOrWhiteSpace(matter.Title))
-            throw new ContentException($"{sourceName}: frontmatter is missing 'title'.");
         if (!Enum.TryParse<Danger>(matter.Danger, ignoreCase: true, out var danger))
             throw new ContentException(
                 $"{sourceName}: frontmatter 'danger' must be safe, caution, or destructive.");
@@ -70,6 +56,57 @@ public static partial class ContentParser
             Consequence: sections.TryGetValue(ConsequenceSection, out var consequence)
                 ? ParseBlocks(consequence)
                 : Array.Empty<ContentBlock>());
+    }
+
+    /// <summary>
+    /// Parses a reading file: the same frontmatter, but one '## what' section and no danger.
+    /// </summary>
+    public static ReadingDocument ParseReading(string fileText, string sourceName)
+    {
+        var (matter, body) = ParseSharedFrontmatter(fileText, sourceName);
+
+        var sections = SplitSections(body, sourceName);
+        if (!sections.TryGetValue("what", out var what))
+            throw new ContentException($"{sourceName}: missing required section '## what'.");
+
+        var blocks = ParseBlocks(what);
+        if (blocks.Count == 0)
+            throw new ContentException($"{sourceName}: '## what' section is empty.");
+
+        return new ReadingDocument(
+            Id: matter.Id!,
+            Title: matter.Title!,
+            Terms: matter.Terms ?? new List<string>(),
+            What: blocks);
+    }
+
+    /// <summary>
+    /// The frontmatter every content file shares: split it, deserialize it, and demand the
+    /// two fields no document of any kind can do without. What a document requires beyond
+    /// these is its own caller's business — 'danger' for an action, a '## what' for a
+    /// reading file.
+    /// </summary>
+    private static (Frontmatter Matter, string Body) ParseSharedFrontmatter(
+        string fileText, string sourceName)
+    {
+        var (frontmatterText, body) = SplitFrontmatter(fileText, sourceName);
+
+        Frontmatter matter;
+        try
+        {
+            matter = Yaml.Deserialize<Frontmatter>(frontmatterText) ?? new Frontmatter();
+        }
+        catch (Exception ex)
+        {
+            throw new ContentException($"{sourceName}: frontmatter is not valid YAML. {ex.Message}");
+        }
+
+        if (string.IsNullOrWhiteSpace(matter.Id))
+            throw new ContentException($"{sourceName}: frontmatter is missing 'id'.");
+        if (string.IsNullOrWhiteSpace(matter.Title))
+            throw new ContentException($"{sourceName}: frontmatter is missing 'title'.");
+
+        return (matter, body);
     }
 
     private static (string Frontmatter, string Body) SplitFrontmatter(string fileText, string sourceName)
